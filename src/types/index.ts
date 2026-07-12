@@ -71,6 +71,18 @@ export interface AvailabilityEntry {
   state: AvailabilityState;
 }
 
+export type CalendarEventCategory = "personal" | "team";
+
+/** External/personal calendar items used for conflict blocking & calendar tabs. */
+export interface CalendarEvent {
+  id: string;
+  userId: string;
+  title: string;
+  start: string;
+  end: string;
+  category: CalendarEventCategory;
+}
+
 export interface Recommendation {
   slot: TimeSlot;
   requiredAttendance: number;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { AppLink } from "@/components/app-link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,10 @@ import { getUserPreferredTimeBands } from "@/lib/preferred-time-band";
 import {
   loadPendingAvailabilityResubmit,
 } from "@/lib/pending-availability-resubmit";
+import {
+  buildCalendarConflictMap,
+} from "@/lib/calendar-events";
+import { getAvailabilityForUser } from "@/lib/matching-engine";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
 
@@ -37,7 +42,43 @@ export function MeetingAvailabilityView({ id }: MeetingAvailabilityViewProps) {
   const clearPendingAvailabilityResubmit = useMeetingStore(
     (s) => s.clearPendingAvailabilityResubmit
   );
+  const calendarEvents = useMeetingStore((s) => s.calendarEvents);
   const { t } = useI18n();
+
+  const calendarConflicts = useMemo(() => {
+    if (!meeting) return {} as Record<string, string>;
+    return buildCalendarConflictMap(
+      meeting.candidateSlots,
+      calendarEvents,
+      viewingAsUserId
+    );
+  }, [meeting, calendarEvents, viewingAsUserId]);
+
+  useEffect(() => {
+    if (!meeting) return;
+    const conflictIds = Object.keys(calendarConflicts);
+    if (conflictIds.length === 0) return;
+
+    for (const slotId of conflictIds) {
+      const current = getAvailabilityForUser(
+        meeting.availability,
+        viewingAsUserId,
+        slotId
+      );
+      if (current !== "unavailable") {
+        setAvailability(id, viewingAsUserId, slotId, "unavailable");
+      }
+    }
+    // Re-apply when slots/user/conflicts change or after day-leave clears a slot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only react to availability snapshot + conflicts
+  }, [
+    calendarConflicts,
+    id,
+    meeting?.availability,
+    meeting?.candidateSlots,
+    setAvailability,
+    viewingAsUserId,
+  ]);
 
   if (!hydrated) {
     return (
@@ -120,9 +161,11 @@ export function MeetingAvailabilityView({ id }: MeetingAvailabilityViewProps) {
             availability={meeting.availability}
             userId={viewingAsUserId}
             dayLeavePresetsByUser={meeting.dayLeavePresetsByUser}
-            onChange={(slotId, state) =>
-              setAvailability(id, viewingAsUserId, slotId, state)
-            }
+            calendarConflicts={calendarConflicts}
+            onChange={(slotId, state) => {
+              if (calendarConflicts[slotId]) return;
+              setAvailability(id, viewingAsUserId, slotId, state);
+            }}
             onDayLeaveChange={(date, preset) =>
               setDayLeavePreset(id, viewingAsUserId, date, preset)
             }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AppLink } from "@/components/app-link";
 import { motion } from "framer-motion";
@@ -21,18 +21,43 @@ import {
 } from "date-fns";
 import { enUS, ko } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/meetings/status-badge";
 import { useShallow } from "zustand/react/shallow";
 import { useMeetingStore } from "@/store/meeting-store";
 import { useI18n } from "@/lib/i18n";
 import { getMeetingDetailPath } from "@/lib/meeting-routes";
 import { cn } from "@/lib/utils";
+import { getUserCalendarEvents } from "@/lib/calendar-events";
+import type { CalendarEvent, Meeting } from "@/types";
+import { CalendarDayActionShell } from "@/components/calendar/calendar-day-action-shell";
+import {
+  CalendarEventFormModal,
+  eventToFormValues,
+  type CalendarEventFormValues,
+} from "@/components/calendar/calendar-event-form-modal";
 
 type CalendarView = "year" | "month" | "week";
 type CalendarCategory = "meetings" | "all" | "team" | "personal";
+
+type CalendarDisplayEvent = {
+  id: string;
+  title: string;
+  date: Date;
+  startIso: string;
+  kind: "meeting" | "personal" | "team";
+  meeting?: Meeting;
+};
 
 const confirmedEventStyles = {
   compact:
@@ -46,9 +71,48 @@ const confirmedEventStyles = {
   cardTimeSm: "text-[10px] text-green-700/80 dark:text-green-400/80",
 };
 
+const otherEventStyles = {
+  personal: {
+    compact:
+      "rounded border border-sky-300 bg-sky-100 p-1.5 dark:border-sky-700 dark:bg-sky-900/30",
+    compactTitle: "text-[10px] font-medium truncate text-black/95",
+    compactTime: "text-[9px] text-sky-700/80 dark:text-sky-400/80",
+    card:
+      "border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-900/10",
+    cardTitle: "font-medium text-black/95",
+    cardTime: "text-sm text-sky-700/80 dark:text-sky-400/80",
+    cardTimeSm: "text-[10px] text-sky-700/80 dark:text-sky-400/80",
+  },
+  team: {
+    compact:
+      "rounded border border-amber-300 bg-amber-100 p-1.5 dark:border-amber-700 dark:bg-amber-900/30",
+    compactTitle: "text-[10px] font-medium truncate text-black/95",
+    compactTime: "text-[9px] text-amber-700/80 dark:text-amber-400/80",
+    card:
+      "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10",
+    cardTitle: "font-medium text-black/95",
+    cardTime: "text-sm text-amber-700/80 dark:text-amber-400/80",
+    cardTimeSm: "text-[10px] text-amber-700/80 dark:text-amber-400/80",
+  },
+} as const;
+
+function eventStylesFor(kind: CalendarDisplayEvent["kind"]) {
+  if (kind === "meeting") return confirmedEventStyles;
+  return otherEventStyles[kind];
+}
+
+function toEventIso(date: string, time: string) {
+  return parseISO(`${date}T${time}:00`).toISOString();
+}
+
 export default function CalendarPage() {
   const pathname = usePathname();
   const meetings = useMeetingStore(useShallow((s) => s.getOrganizerMeetings()));
+  const viewingAsUserId = useMeetingStore((s) => s.viewingAsUserId);
+  const calendarEvents = useMeetingStore((s) => s.calendarEvents);
+  const addCalendarEvent = useMeetingStore((s) => s.addCalendarEvent);
+  const updateCalendarEvent = useMeetingStore((s) => s.updateCalendarEvent);
+  const deleteCalendarEvent = useMeetingStore((s) => s.deleteCalendarEvent);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarView>("month");
   const [category, setCategory] = useState<CalendarCategory>("meetings");
@@ -56,9 +120,19 @@ export default function CalendarPage() {
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(() =>
     new Date().getMonth()
   );
+  const [actionDay, setActionDay] = useState<Date | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [formDate, setFormDate] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState<"edit" | "delete">("edit");
+  const [pickerEvents, setPickerEvents] = useState<CalendarEvent[]>([]);
   const { locale, t, formatTime } = useI18n();
   const dateLocale = locale === "ko" ? ko : enUS;
   const today = useMemo(() => startOfDay(new Date()), []);
+  const scheduleEditable =
+    category === "all" || category === "team" || category === "personal";
 
   useEffect(() => {
     if (view === "month") {
@@ -66,21 +140,49 @@ export default function CalendarPage() {
     }
   }, [view, pathname]);
 
-  const events = useMemo(
+  useEffect(() => {
+    setActionDay(null);
+  }, [category, view]);
+
+  const meetingEvents = useMemo<CalendarDisplayEvent[]>(
     () =>
       meetings
         .filter((m) => m.confirmedSlot)
         .map((m) => ({
-          meeting: m,
+          id: m.id,
+          title: m.title,
           date: parseISO(m.confirmedSlot!.start),
+          startIso: m.confirmedSlot!.start,
+          kind: "meeting" as const,
+          meeting: m,
         })),
     [meetings]
   );
 
+  const sideEvents = useMemo<CalendarDisplayEvent[]>(() => {
+    return getUserCalendarEvents(calendarEvents, viewingAsUserId).map(
+      (event) => ({
+        id: event.id,
+        title: event.title,
+        date: parseISO(event.start),
+        startIso: event.start,
+        kind: event.category,
+      })
+    );
+  }, [calendarEvents, viewingAsUserId]);
+
   const filteredEvents = useMemo(() => {
-    if (category === "meetings" || category === "all") return events;
-    return [];
-  }, [events, category]);
+    if (category === "meetings") return meetingEvents;
+    if (category === "personal") {
+      return sideEvents.filter((event) => event.kind === "personal");
+    }
+    if (category === "team") {
+      return sideEvents.filter((event) => event.kind === "team");
+    }
+    return [...meetingEvents, ...sideEvents].sort(
+      (a, b) => a.date.getTime() - b.date.getTime()
+    );
+  }, [category, meetingEvents, sideEvents]);
 
   const categoryEmptyMessage =
     category === "team"
@@ -91,6 +193,120 @@ export default function CalendarPage() {
 
   const getEventsForDay = (day: Date) =>
     filteredEvents.filter((e) => isSameDay(e.date, day));
+
+  const getEditableEventsForDay = (day: Date) =>
+    getUserCalendarEvents(calendarEvents, viewingAsUserId).filter((event) => {
+      if (!isSameDay(parseISO(event.start), day)) return false;
+      if (category === "personal") return event.category === "personal";
+      if (category === "team") return event.category === "team";
+      return true;
+    });
+
+  const defaultCategoryForForm =
+    category === "team" ? "team" : ("personal" as const);
+
+  const openCreateForDay = (day: Date) => {
+    setFormMode("create");
+    setEditingEvent(null);
+    setFormDate(format(day, "yyyy-MM-dd"));
+    setFormOpen(true);
+    setActionDay(null);
+  };
+
+  const openEditForEvents = (events: CalendarEvent[]) => {
+    if (events.length === 0) return;
+    if (events.length === 1) {
+      setFormMode("edit");
+      setEditingEvent(events[0]);
+      setFormDate(format(parseISO(events[0].start), "yyyy-MM-dd"));
+      setFormOpen(true);
+      setActionDay(null);
+      return;
+    }
+    setPickerMode("edit");
+    setPickerEvents(events);
+    setPickerOpen(true);
+    setActionDay(null);
+  };
+
+  const openDeleteForEvents = (events: CalendarEvent[]) => {
+    if (events.length === 0) return;
+    if (events.length === 1) {
+      if (window.confirm(t.calendar.eventDeleteConfirm)) {
+        deleteCalendarEvent(events[0].id);
+        toast.success(t.calendar.eventDeleted);
+      }
+      setActionDay(null);
+      return;
+    }
+    setPickerMode("delete");
+    setPickerEvents(events);
+    setPickerOpen(true);
+    setActionDay(null);
+  };
+
+  const handleFormSubmit = (values: CalendarEventFormValues) => {
+    const start = toEventIso(values.date, values.startTime);
+    const end = toEventIso(values.date, values.endTime);
+    if (formMode === "create") {
+      addCalendarEvent({
+        userId: viewingAsUserId,
+        title: values.title,
+        start,
+        end,
+        category: values.category,
+      });
+      toast.success(t.calendar.eventCreated);
+      return;
+    }
+    if (!editingEvent) return;
+    updateCalendarEvent(editingEvent.id, {
+      title: values.title,
+      start,
+      end,
+      category: values.category,
+    });
+    toast.success(t.calendar.eventUpdated);
+  };
+
+  const renderDayActionShell = (
+    day: Date,
+    options: {
+      selected: boolean;
+      className: string;
+      children: ReactNode;
+    }
+  ) => {
+    const dayEvents = getEventsForDay(day);
+    const editableEvents = getEditableEventsForDay(day);
+    const canRegister = scheduleEditable && dayEvents.length === 0;
+    const canEditDelete = scheduleEditable && editableEvents.length > 0;
+    const showActions = Boolean(actionDay && isSameDay(actionDay, day));
+
+    return (
+      <CalendarDayActionShell
+        key={day.toISOString()}
+        enabled={scheduleEditable}
+        selected={options.selected}
+        showActions={showActions}
+        canRegister={canRegister}
+        canEditDelete={canEditDelete}
+        className={options.className}
+        onSelect={() => {
+          setSelectedDay(startOfDay(day));
+          if (actionDay && !isSameDay(actionDay, day)) {
+            setActionDay(null);
+          }
+        }}
+        onShowActions={() => setActionDay(startOfDay(day))}
+        onRegister={() => openCreateForDay(day)}
+        onEdit={() => openEditForEvents(editableEvents)}
+        onDelete={() => openDeleteForEvents(editableEvents)}
+      >
+        {options.children}
+      </CalendarDayActionShell>
+    );
+  };
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -220,6 +436,52 @@ export default function CalendarPage() {
     { id: "personal", label: t.calendar.categoryPersonal },
   ];
 
+  const renderEventCard = (
+    event: CalendarDisplayEvent,
+    size: "card" | "compact" | "week" = "card"
+  ) => {
+    const styles = eventStylesFor(event.kind);
+    const time = formatTime(event.startIso);
+    const body =
+      size === "compact" ? (
+        <div className={styles.compact}>
+          <p className={styles.compactTitle}>{event.title}</p>
+          <p className={styles.compactTime}>{time}</p>
+        </div>
+      ) : size === "week" ? (
+        <Card className={styles.card}>
+          <CardContent className="p-2">
+            <p className={cn("text-xs font-medium truncate", styles.cardTitle)}>
+              {event.title}
+            </p>
+            <p className={styles.cardTimeSm}>{time}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className={cn("mb-2", styles.card)}>
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className={cn("truncate", styles.cardTitle)}>{event.title}</p>
+              <p className={styles.cardTime}>{time}</p>
+            </div>
+            {event.meeting && (
+              <StatusBadge status={event.meeting.status} meeting={event.meeting} />
+            )}
+          </CardContent>
+        </Card>
+      );
+
+    if (event.meeting) {
+      return (
+        <AppLink key={event.id} href={getMeetingDetailPath(event.meeting.id)}>
+          {body}
+        </AppLink>
+      );
+    }
+
+    return <div key={event.id}>{body}</div>;
+  };
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto">
       <motion.div
@@ -347,29 +609,7 @@ export default function CalendarPage() {
                       {formatMonthDayHeader(dayEvents[0].date)}
                     </h4>
                     <div className="space-y-2">
-                      {dayEvents.map(({ meeting, date }) => (
-                        <AppLink
-                          key={meeting.id}
-                          href={getMeetingDetailPath(meeting.id)}
-                        >
-                          <Card className={confirmedEventStyles.card}>
-                            <CardContent className="p-4 flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className={cn("truncate", confirmedEventStyles.cardTitle)}>
-                                  {meeting.title}
-                                </p>
-                                <p className={confirmedEventStyles.cardTime}>
-                                  {formatTime(date.toISOString())}
-                                </p>
-                              </div>
-                              <StatusBadge
-                                status={meeting.status}
-                                meeting={meeting}
-                              />
-                            </CardContent>
-                          </Card>
-                        </AppLink>
-                      ))}
+                      {dayEvents.map((event) => renderEventCard(event, "card"))}
                     </div>
                   </div>
                 ))}
@@ -441,18 +681,9 @@ export default function CalendarPage() {
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => e.stopPropagation()}
                     >
-                      {dayEvents.slice(0, 2).map(({ meeting, date }) => (
-                        <AppLink key={meeting.id} href={getMeetingDetailPath(meeting.id)}>
-                          <div className={confirmedEventStyles.compact}>
-                            <p className={confirmedEventStyles.compactTitle}>
-                              {meeting.title}
-                            </p>
-                            <p className={confirmedEventStyles.compactTime}>
-                              {formatTime(date.toISOString())}
-                            </p>
-                          </div>
-                        </AppLink>
-                      ))}
+                      {dayEvents.slice(0, 2).map((event) =>
+                        renderEventCard(event, "compact")
+                      )}
                       {dayEvents.length > 2 && (
                         <p className="text-[9px] text-muted-foreground text-center">
                           +{dayEvents.length - 2}
@@ -481,33 +712,37 @@ export default function CalendarPage() {
                 const isSelected = inMonth && isSameDay(day, selectedDay);
                 const isToday = inMonth && isSameDay(day, today);
                 const dayEvents = getEventsForDay(day);
-                return (
-                  <button
-                    key={day.toISOString()}
-                    type="button"
-                    disabled={!inMonth}
-                    aria-pressed={isSelected}
-                    onClick={() => inMonth && setSelectedDay(startOfDay(day))}
-                    className={cn(
-                      "relative flex flex-col items-center justify-center rounded-lg py-2 min-h-[44px] text-sm font-medium transition-colors",
-                      !inMonth && "opacity-0 pointer-events-none",
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent/50",
-                      isToday && !isSelected && "text-primary font-semibold"
-                    )}
-                  >
-                    <span>{format(day, "d")}</span>
-                    {dayEvents.length > 0 && (
-                      <span
-                        className={cn(
-                          "absolute bottom-1 h-1 w-1 rounded-full",
-                          isSelected ? "bg-primary-foreground" : "bg-primary"
-                        )}
-                      />
-                    )}
-                  </button>
-                );
+                if (!inMonth) {
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className="opacity-0 pointer-events-none min-h-[44px]"
+                    />
+                  );
+                }
+                return renderDayActionShell(day, {
+                  selected: isSelected,
+                  className: cn(
+                    "relative flex w-full flex-col items-center justify-center rounded-lg py-2 min-h-[44px] text-sm font-medium transition-colors",
+                    isSelected
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent/50",
+                    isToday && !isSelected && "text-primary font-semibold"
+                  ),
+                  children: (
+                    <>
+                      <span>{format(day, "d")}</span>
+                      {dayEvents.length > 0 && (
+                        <span
+                          className={cn(
+                            "absolute bottom-1 h-1 w-1 rounded-full",
+                            isSelected ? "bg-primary-foreground" : "bg-primary"
+                          )}
+                        />
+                      )}
+                    </>
+                  ),
+                });
               })}
             </div>
             <div className="space-y-3">
@@ -516,24 +751,12 @@ export default function CalendarPage() {
               </h3>
               {getEventsForDay(selectedDay).length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
-                  {categoryEmptyMessage ?? t.dashboard.noEventsOnDay}
+                  {categoryEmptyMessage ?? t.calendar.noEventsOnDay}
                 </p>
               ) : (
-                getEventsForDay(selectedDay).map(({ meeting, date }) => (
-                  <AppLink key={meeting.id} href={getMeetingDetailPath(meeting.id)}>
-                    <Card className={cn("mb-2", confirmedEventStyles.card)}>
-                      <CardContent className="p-4 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className={confirmedEventStyles.cardTitle}>{meeting.title}</p>
-                          <p className={confirmedEventStyles.cardTime}>
-                            {formatTime(date.toISOString())}
-                          </p>
-                        </div>
-                        <StatusBadge status={meeting.status} meeting={meeting} />
-                      </CardContent>
-                    </Card>
-                  </AppLink>
-                ))
+                getEventsForDay(selectedDay).map((event) =>
+                  renderEventCard(event, "card")
+                )
               )}
             </div>
           </div>
@@ -549,38 +772,26 @@ export default function CalendarPage() {
               const isToday = isSameDay(day, today);
               return (
                 <div key={day.toISOString()} className="min-h-[200px]">
-                  <button
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => setSelectedDay(startOfDay(day))}
-                    className={cn(
+                  {renderDayActionShell(day, {
+                    selected: isSelected,
+                    className: cn(
                       "w-full text-center py-2 rounded-lg mb-2 text-sm font-medium transition-colors",
                       isSelected
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-accent/50",
                       isToday && !isSelected && "text-primary"
-                    )}
-                  >
-                    <p className="text-xs">
-                      {format(day, "EEE", { locale: dateLocale })}
-                    </p>
-                    <p>{format(day, "d")}</p>
-                  </button>
+                    ),
+                    children: (
+                      <>
+                        <p className="text-xs">
+                          {format(day, "EEE", { locale: dateLocale })}
+                        </p>
+                        <p>{format(day, "d")}</p>
+                      </>
+                    ),
+                  })}
                   <div className="space-y-2">
-                    {dayEvents.map(({ meeting, date }) => (
-                      <AppLink key={meeting.id} href={getMeetingDetailPath(meeting.id)}>
-                        <Card className={confirmedEventStyles.card}>
-                          <CardContent className="p-2">
-                            <p className={cn("text-xs font-medium truncate", confirmedEventStyles.cardTitle)}>
-                              {meeting.title}
-                            </p>
-                            <p className={confirmedEventStyles.cardTimeSm}>
-                              {formatTime(date.toISOString())}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </AppLink>
-                    ))}
+                    {dayEvents.map((event) => renderEventCard(event, "week"))}
                   </div>
                 </div>
               );
@@ -591,49 +802,35 @@ export default function CalendarPage() {
               {weekDays.map((day) => {
                 const isSelected = isSameDay(day, selectedDay);
                 const isToday = isSameDay(day, today);
-                return (
-                  <button
-                    key={day.toISOString()}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => setSelectedDay(startOfDay(day))}
-                    className={cn(
-                      "flex flex-col items-center justify-center py-2 rounded-xl text-sm font-medium transition-colors min-h-[56px]",
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent/50",
-                      isToday && !isSelected && "text-primary"
-                    )}
-                  >
-                    <p className="text-xs">
-                      {format(day, "EEE", { locale: dateLocale })}
-                    </p>
-                    <p>{format(day, "d")}</p>
-                  </button>
-                );
+                return renderDayActionShell(day, {
+                  selected: isSelected,
+                  className: cn(
+                    "flex w-full flex-col items-center justify-center py-2 rounded-xl text-sm font-medium transition-colors min-h-[56px]",
+                    isSelected
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent/50",
+                    isToday && !isSelected && "text-primary"
+                  ),
+                  children: (
+                    <>
+                      <p className="text-xs">
+                        {format(day, "EEE", { locale: dateLocale })}
+                      </p>
+                      <p>{format(day, "d")}</p>
+                    </>
+                  ),
+                });
               })}
             </div>
             <div className="space-y-3">
               {getEventsForDay(selectedDay).length === 0 ? (
                 <p className="text-center text-muted-foreground py-12">
-                  {categoryEmptyMessage ?? t.dashboard.noEventsOnDay}
+                  {categoryEmptyMessage ?? t.calendar.noEventsOnDay}
                 </p>
               ) : (
-                getEventsForDay(selectedDay).map(({ meeting, date }) => (
-                  <AppLink key={meeting.id} href={getMeetingDetailPath(meeting.id)}>
-                    <Card className={cn("mb-2", confirmedEventStyles.card)}>
-                      <CardContent className="p-4 flex items-center justify-between">
-                        <div>
-                          <p className={confirmedEventStyles.cardTitle}>{meeting.title}</p>
-                          <p className={confirmedEventStyles.cardTime}>
-                            {formatTime(date.toISOString())}
-                          </p>
-                        </div>
-                        <StatusBadge status={meeting.status} meeting={meeting} />
-                      </CardContent>
-                    </Card>
-                  </AppLink>
-                ))
+                getEventsForDay(selectedDay).map((event) =>
+                  renderEventCard(event, "card")
+                )
               )}
             </div>
           </div>
@@ -646,6 +843,76 @@ export default function CalendarPage() {
           <p className="text-xs mt-1">{t.calendar.integrationHint}</p>
         </CardContent>
       </Card>
+
+      <CalendarEventFormModal
+        open={formOpen}
+        mode={formMode}
+        formKey={
+          formMode === "edit" && editingEvent
+            ? editingEvent.id
+            : `create-${formDate}`
+        }
+        lockCategory={category === "personal" || category === "team"}
+        initial={
+          formMode === "edit" && editingEvent
+            ? eventToFormValues(editingEvent)
+            : {
+                date: formDate,
+                category: defaultCategoryForForm,
+                title: "",
+                startTime: "10:00",
+                endTime: "11:00",
+              }
+        }
+        onOpenChange={setFormOpen}
+        onSubmit={handleFormSubmit}
+      />
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {pickerMode === "edit"
+                ? t.calendar.eventPickEdit
+                : t.calendar.eventPickDelete}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {pickerEvents.map((event) => (
+              <Button
+                key={event.id}
+                type="button"
+                variant="outline"
+                className="w-full justify-start h-auto py-3"
+                onClick={() => {
+                  if (pickerMode === "edit") {
+                    setFormMode("edit");
+                    setEditingEvent(event);
+                    setFormDate(format(parseISO(event.start), "yyyy-MM-dd"));
+                    setPickerOpen(false);
+                    setFormOpen(true);
+                    return;
+                  }
+                  if (window.confirm(t.calendar.eventDeleteConfirm)) {
+                    deleteCalendarEvent(event.id);
+                    toast.success(t.calendar.eventDeleted);
+                  }
+                  setPickerOpen(false);
+                }}
+              >
+                <span className="truncate">
+                  {event.title} · {formatTime(event.start)}
+                </span>
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPickerOpen(false)}>
+              {t.common.cancel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

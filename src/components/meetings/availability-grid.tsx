@@ -24,6 +24,8 @@ interface AvailabilityGridProps {
   availability: AvailabilityEntry[];
   userId: string;
   dayLeavePresetsByUser?: Record<string, Record<string, DayLeavePreset>>;
+  /** Invitee-only: slotId → overlapping calendar event title */
+  calendarConflicts?: Record<string, string>;
   onChange: (slotId: string, state: AvailabilityState) => void;
   onDayLeaveChange: (date: string, preset: DayLeavePreset) => void;
 }
@@ -64,7 +66,8 @@ const DRAG_MOVE_THRESHOLD_PX = 14;
 function useAvailabilityPaint(
   availability: AvailabilityEntry[],
   userId: string,
-  onChange: (slotId: string, state: AvailabilityState) => void
+  onChange: (slotId: string, state: AvailabilityState) => void,
+  lockedSlotIds: Set<string>
 ) {
   const isPaintingRef = useRef(false);
   const paintStateRef = useRef<AvailabilityState | null>(null);
@@ -77,10 +80,12 @@ function useAvailabilityPaint(
   const availabilityRef = useRef(availability);
   const userIdRef = useRef(userId);
   const onChangeRef = useRef(onChange);
+  const lockedSlotIdsRef = useRef(lockedSlotIds);
 
   availabilityRef.current = availability;
   userIdRef.current = userId;
   onChangeRef.current = onChange;
+  lockedSlotIdsRef.current = lockedSlotIds;
 
   const getSlotIdFromPoint = (clientX: number, clientY: number) => {
     const element = document.elementFromPoint(clientX, clientY);
@@ -101,6 +106,7 @@ function useAvailabilityPaint(
 
   const applyPaint = useCallback((slotId: string) => {
     if (!isPaintingRef.current || paintStateRef.current === null) return;
+    if (lockedSlotIdsRef.current.has(slotId)) return;
     if (paintedRef.current.has(slotId)) return;
 
     paintedRef.current.add(slotId);
@@ -130,7 +136,7 @@ function useAvailabilityPaint(
       heldMs <= TAP_MAX_DURATION_MS;
 
     // Only a short tap cycles. Long-press without drag must not change state.
-    if (isShortTap) {
+    if (isShortTap && slotId && !lockedSlotIdsRef.current.has(slotId)) {
       const current = getAvailabilityForUser(
         availabilityRef.current,
         userIdRef.current,
@@ -201,6 +207,7 @@ function useAvailabilityPaint(
   const handlePointerDown = useCallback(
     (slotId: string, event: React.PointerEvent<HTMLElement>) => {
       if (event.button !== 0) return;
+      if (lockedSlotIdsRef.current.has(slotId)) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -279,6 +286,7 @@ interface SlotButtonProps {
   timeLabel: string;
   endTimeLabel?: string;
   layout: "mobile" | "desktop";
+  locked?: boolean;
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
 }
 
@@ -289,6 +297,7 @@ function SlotButton({
   timeLabel,
   endTimeLabel,
   layout,
+  locked = false,
   onPointerDown,
 }: SlotButtonProps) {
   const { t } = useI18n();
@@ -298,17 +307,21 @@ function SlotButton({
       <motion.button
         type="button"
         data-slot-id={slot.id}
-        whileTap={{ scale: 0.98 }}
-        onPointerDown={onPointerDown}
+        whileTap={locked ? undefined : { scale: 0.98 }}
+        onPointerDown={locked ? undefined : onPointerDown}
+        disabled={locked}
         onContextMenu={(event) => event.preventDefault()}
         className={cn(
           "w-full p-4 min-h-[72px] rounded-xl border-2 text-left transition-colors touch-target select-none touch-none",
-          stateStyles[state]
+          stateStyles[state],
+          locked && "cursor-not-allowed opacity-95"
         )}
-        aria-label={`${timeLabel} - ${stateLabel}. ${t.availability.tapToChange}`}
+        aria-label={`${timeLabel} - ${stateLabel}. ${
+          locked ? t.availability.calendarLockedHint : t.availability.tapToChange
+        }`}
       >
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
             <p className="font-semibold text-base">{timeLabel}</p>
             {endTimeLabel && (
               <p className="text-xs opacity-75">
@@ -317,7 +330,9 @@ function SlotButton({
               </p>
             )}
           </div>
-          <span className="text-sm font-medium">{stateLabel}</span>
+          <span className="text-sm font-medium text-right shrink-0 max-w-[55%] truncate">
+            {stateLabel}
+          </span>
         </div>
       </motion.button>
     );
@@ -327,18 +342,23 @@ function SlotButton({
     <motion.button
       type="button"
       data-slot-id={slot.id}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      onPointerDown={onPointerDown}
+      whileHover={locked ? undefined : { scale: 1.02 }}
+      whileTap={locked ? undefined : { scale: 0.97 }}
+      onPointerDown={locked ? undefined : onPointerDown}
+      disabled={locked}
       onContextMenu={(event) => event.preventDefault()}
       className={cn(
         "p-3 min-h-[64px] rounded-lg border-2 text-center transition-colors select-none touch-none",
-        stateStyles[state]
+        stateStyles[state],
+        locked && "cursor-not-allowed opacity-95"
       )}
       aria-label={`${timeLabel} - ${stateLabel}`}
+      title={locked ? t.availability.calendarLockedHint : undefined}
     >
       <p className="text-sm font-semibold">{timeLabel}</p>
-      <p className="text-[10px] mt-0.5 opacity-75">{stateLabel}</p>
+      <p className="text-[10px] mt-0.5 opacity-75 leading-snug line-clamp-2">
+        {stateLabel}
+      </p>
     </motion.button>
   );
 }
@@ -348,21 +368,32 @@ export function AvailabilityGrid({
   availability,
   userId,
   dayLeavePresetsByUser,
+  calendarConflicts = {},
   onChange,
   onDayLeaveChange,
 }: AvailabilityGridProps) {
   const { t, formatDate, formatTime } = useI18n();
   const grouped = groupSlotsByDate(slots);
+  const lockedSlotIds = new Set(Object.keys(calendarConflicts));
   const { handlePointerDown } = useAvailabilityPaint(
     availability,
     userId,
-    onChange
+    onChange,
+    lockedSlotIds
   );
 
   const stateLabels: Record<AvailabilityState, string> = {
     available: t.availability.available,
     preferred_not: t.availability.preferredNot,
     unavailable: t.availability.unavailable,
+  };
+
+  const resolveStateLabel = (slotId: string, state: AvailabilityState) => {
+    const conflictTitle = calendarConflicts[slotId];
+    if (conflictTitle) {
+      return t.availability.unavailableWithEvent(conflictTitle);
+    }
+    return stateLabels[state];
   };
 
   return (
@@ -388,16 +419,20 @@ export function AvailabilityGrid({
               </div>
               <div className="space-y-2">
                 {dateSlots.map((slot) => {
-                  const state = getAvailabilityForUser(availability, userId, slot.id);
+                  const conflictTitle = calendarConflicts[slot.id];
+                  const state = conflictTitle
+                    ? "unavailable"
+                    : getAvailabilityForUser(availability, userId, slot.id);
                   return (
                     <SlotButton
                       key={slot.id}
                       slot={slot}
                       state={state}
-                      stateLabel={stateLabels[state]}
+                      stateLabel={resolveStateLabel(slot.id, state)}
                       timeLabel={formatTime(slot.start)}
                       endTimeLabel={formatTime(slot.end)}
                       layout="mobile"
+                      locked={Boolean(conflictTitle)}
                       onPointerDown={(event) => handlePointerDown(slot.id, event)}
                     />
                   );
@@ -429,15 +464,19 @@ export function AvailabilityGrid({
               </div>
               <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
                 {dateSlots.map((slot) => {
-                  const state = getAvailabilityForUser(availability, userId, slot.id);
+                  const conflictTitle = calendarConflicts[slot.id];
+                  const state = conflictTitle
+                    ? "unavailable"
+                    : getAvailabilityForUser(availability, userId, slot.id);
                   return (
                     <SlotButton
                       key={slot.id}
                       slot={slot}
                       state={state}
-                      stateLabel={stateLabels[state]}
+                      stateLabel={resolveStateLabel(slot.id, state)}
                       timeLabel={formatTime(slot.start)}
                       layout="desktop"
+                      locked={Boolean(conflictTitle)}
                       onPointerDown={(event) => handlePointerDown(slot.id, event)}
                     />
                   );

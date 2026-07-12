@@ -13,8 +13,13 @@ import type {
   ResponseReminderInterval,
   ResponseReminderSettings,
   TimeSlot,
+  CalendarEvent,
+  CalendarEventCategory,
 } from "@/types";
 import { formatLocalizedDateTime } from "@/lib/i18n/format";
+import {
+  getDemoCalendarEvents,
+} from "@/lib/calendar-events";
 import { DEFAULT_RESPONSE_REMINDER_SETTINGS } from "@/types";
 import {
   generateCandidateSlots,
@@ -220,6 +225,7 @@ function initMeetings(locale: Locale): Meeting[] {
 
 interface MeetingStore {
   meetings: Meeting[];
+  calendarEvents: CalendarEvent[];
   notifications: Notification[];
   dismissedNotificationIds: string[];
   darkMode: boolean;
@@ -320,12 +326,27 @@ interface MeetingStore {
   getDashboardStats: () => DashboardStats;
   getOrganizerMeetings: () => Meeting[];
   getInviteeMeetings: (userId: string) => Meeting[];
+  addCalendarEvent: (input: {
+    userId: string;
+    title: string;
+    start: string;
+    end: string;
+    category: CalendarEventCategory;
+  }) => CalendarEvent;
+  updateCalendarEvent: (
+    id: string,
+    updates: Partial<
+      Pick<CalendarEvent, "title" | "start" | "end" | "category">
+    >
+  ) => void;
+  deleteCalendarEvent: (id: string) => void;
 }
 
 export const useMeetingStore = create<MeetingStore>()(
   persist(
     (set, get) => ({
       meetings: initMeetings("ko"),
+      calendarEvents: getDemoCalendarEvents("ko"),
       notifications: getDemoNotifications("ko"),
       dismissedNotificationIds: [],
       darkMode: false,
@@ -338,9 +359,15 @@ export const useMeetingStore = create<MeetingStore>()(
       setLocale: (locale) => {
         set((s) => {
           const dismissed = new Set(s.dismissedNotificationIds);
+          const demoEvents = getDemoCalendarEvents(locale);
+          const demoIds = new Set(demoEvents.map((event) => event.id));
           return {
             locale,
             meetings: localizeMeetings(s.meetings, locale),
+            calendarEvents: [
+              ...demoEvents,
+              ...s.calendarEvents.filter((event) => !demoIds.has(event.id)),
+            ],
             notifications: mergeDemoNotifications(
               s.notifications,
               locale,
@@ -1154,11 +1181,47 @@ export const useMeetingStore = create<MeetingStore>()(
         get().meetings.filter((m) =>
           m.attendees.some((a) => a.userId === userId)
         ),
+
+      addCalendarEvent: (input) => {
+        const event: CalendarEvent = {
+          id: `cal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          userId: input.userId,
+          title: input.title.trim(),
+          start: input.start,
+          end: input.end,
+          category: input.category,
+        };
+        set((s) => ({
+          calendarEvents: [...s.calendarEvents, event],
+        }));
+        return event;
+      },
+
+      updateCalendarEvent: (id, updates) => {
+        set((s) => ({
+          calendarEvents: s.calendarEvents.map((event) =>
+            event.id === id
+              ? {
+                  ...event,
+                  ...updates,
+                  title: updates.title?.trim() || event.title,
+                }
+              : event
+          ),
+        }));
+      },
+
+      deleteCalendarEvent: (id) => {
+        set((s) => ({
+          calendarEvents: s.calendarEvents.filter((event) => event.id !== id),
+        }));
+      },
     }),
     {
-      name: "meeting-scheduler-storage-v16",
+      name: "meeting-scheduler-storage-v17",
       partialize: (state) => ({
         meetings: state.meetings,
+        calendarEvents: state.calendarEvents,
         notifications: state.notifications,
         dismissedNotificationIds: state.dismissedNotificationIds,
         darkMode: state.darkMode,
@@ -1219,6 +1282,10 @@ export const useMeetingStore = create<MeetingStore>()(
 
         if (!state.pendingAvailabilityResubmit) {
           state.pendingAvailabilityResubmit = loadPendingAvailabilityResubmit();
+        }
+
+        if (!state.calendarEvents || state.calendarEvents.length === 0) {
+          state.calendarEvents = getDemoCalendarEvents(state.locale);
         }
 
         const dismissedNotificationIds = new Set(
