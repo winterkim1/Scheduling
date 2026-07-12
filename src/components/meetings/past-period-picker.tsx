@@ -31,18 +31,34 @@ export interface DateRange {
   end: Date;
 }
 
+export type DateRangeBound = "past" | "future";
+
 interface PastPeriodPickerProps {
   open: boolean;
   range: DateRange;
   onOpenChange: (open: boolean) => void;
   onChange: (range: DateRange) => void;
+  /** past: today and earlier; future: today and later */
+  bound?: DateRangeBound;
+  title?: string;
+  hint?: string;
 }
 
 const DRAG_MOVE_THRESHOLD_PX = 8;
 
-function clampToToday(date: Date) {
+function clampToBound(date: Date, bound: DateRangeBound) {
   const today = startOfDay(new Date());
-  return isAfter(date, today) ? today : startOfDay(date);
+  const day = startOfDay(date);
+  if (bound === "past") {
+    return isAfter(day, today) ? today : day;
+  }
+  return isBefore(day, today) ? today : day;
+}
+
+function isDayOutOfBound(day: Date, bound: DateRangeBound, today: Date) {
+  const value = startOfDay(day);
+  if (bound === "past") return isAfter(value, today);
+  return isBefore(value, today);
 }
 
 export function PastPeriodPicker({
@@ -50,6 +66,9 @@ export function PastPeriodPicker({
   range,
   onOpenChange,
   onChange,
+  bound = "past",
+  title,
+  hint,
 }: PastPeriodPickerProps) {
   const { locale, t } = useI18n();
   const dateLocale = locale === "ko" ? ko : enUS;
@@ -109,6 +128,18 @@ export function PastPeriodPicker({
     [draft, locale, dateLocale]
   );
 
+  const dialogTitle = title ?? t.meetings.selectWeekPeriod;
+  const dialogHint = hint ?? t.meetings.selectWeekPeriodHint;
+
+  const canGoPrevMonth =
+    bound === "future"
+      ? isAfter(viewMonth, startOfMonth(today))
+      : true;
+  const canGoNextMonth =
+    bound === "past"
+      ? !(isSameMonth(viewMonth, today) || isAfter(viewMonth, today))
+      : true;
+
   const applyRange = (startDay: Date, endDay: Date) => {
     const start = startOfDay(minDate([startDay, endDay]));
     const end = startOfDay(maxDate([startDay, endDay]));
@@ -117,10 +148,11 @@ export function PastPeriodPicker({
 
   const getDayFromPoint = (clientX: number, clientY: number) => {
     const element = document.elementFromPoint(clientX, clientY);
-    const raw = element?.closest<HTMLElement>("[data-past-day]")?.dataset.pastDay;
+    const raw = element?.closest<HTMLElement>("[data-range-day]")?.dataset
+      .rangeDay;
     if (!raw) return null;
-    const day = clampToToday(new Date(raw));
-    if (isAfter(day, today)) return null;
+    const day = clampToBound(new Date(raw), bound);
+    if (isDayOutOfBound(day, bound, today)) return null;
     return day;
   };
 
@@ -130,8 +162,8 @@ export function PastPeriodPicker({
       return;
     }
 
-    const selected = clampToToday(day);
-    if (isAfter(selected, today)) return;
+    const selected = clampToBound(day, bound);
+    if (isDayOutOfBound(selected, bound, today)) return;
 
     if (shiftKey && anchor) {
       applyRange(anchor, selected);
@@ -149,8 +181,8 @@ export function PastPeriodPicker({
     if (event.button !== 0) return;
     if (event.pointerType === "mouse" && event.shiftKey) return;
 
-    const selected = clampToToday(day);
-    if (isAfter(selected, today)) return;
+    const selected = clampToBound(day, bound);
+    if (isDayOutOfBound(selected, bound, today)) return;
 
     pointerStartRef.current = { x: event.clientX, y: event.clientY };
     dragActiveRef.current = false;
@@ -225,7 +257,7 @@ export function PastPeriodPicker({
       ref={panelRef}
       className="absolute left-1/2 top-full z-30 mt-2 w-[min(100%,320px)] -translate-x-1/2 rounded-xl border bg-card p-3 shadow-lg"
       role="dialog"
-      aria-label={t.meetings.selectWeekPeriod}
+      aria-label={dialogTitle}
     >
       <div className="flex items-center justify-between gap-2 mb-3">
         <p className="text-sm font-medium truncate">{draftLabel}</p>
@@ -248,6 +280,7 @@ export function PastPeriodPicker({
           size="icon"
           className="h-8 w-8"
           onClick={() => setViewMonth((month) => addMonths(month, -1))}
+          disabled={!canGoPrevMonth}
           aria-label={t.calendar.prevMonth}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -263,7 +296,7 @@ export function PastPeriodPicker({
           size="icon"
           className="h-8 w-8"
           onClick={() => setViewMonth((month) => addMonths(month, 1))}
-          disabled={isSameMonth(viewMonth, today) || isAfter(viewMonth, today)}
+          disabled={!canGoNextMonth}
           aria-label={t.calendar.nextMonth}
         >
           <ChevronRight className="h-4 w-4" />
@@ -284,7 +317,7 @@ export function PastPeriodPicker({
       <div className="grid grid-cols-7 gap-1 touch-none select-none">
         {days.map((day) => {
           const inMonth = isSameMonth(day, viewMonth);
-          const disabled = isAfter(startOfDay(day), today);
+          const disabled = isDayOutOfBound(day, bound, today);
           const inRange = isWithinInterval(startOfDay(day), {
             start: startOfDay(draft.start),
             end: endOfDay(draft.end),
@@ -298,7 +331,7 @@ export function PastPeriodPicker({
               key={day.toISOString()}
               type="button"
               disabled={disabled || !inMonth}
-              data-past-day={day.toISOString()}
+              data-range-day={day.toISOString()}
               onClick={(event) => handleDayClick(day, event.shiftKey)}
               onPointerDown={(event) => handleDayPointerDown(day, event)}
               onPointerMove={handleDayPointerMove}
@@ -324,7 +357,7 @@ export function PastPeriodPicker({
       </div>
 
       <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
-        {t.meetings.selectWeekPeriodHint}
+        {dialogHint}
       </p>
 
       <div className="flex gap-2 mt-3">

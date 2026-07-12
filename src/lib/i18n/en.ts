@@ -249,8 +249,10 @@ export const en = {
     durationCustom: "Custom",
     errorDuration: "Please enter a valid duration",
     priority: "Urgent",
-    dateStart: "Date range start",
-    dateEnd: "Date range end",
+    scheduledDate: "Scheduled date",
+    selectScheduledDate: "Select scheduled date",
+    scheduledDateHint:
+      "Tap a date, then drag to select a range (Shift+click on desktop)",
     deadline: "Response deadline",
     attendees: "Attendees",
     required: "Required",

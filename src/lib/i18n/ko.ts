@@ -247,8 +247,10 @@ export const ko = {
     durationCustom: "직접 입력",
     errorDuration: "소요 시간을 올바르게 입력해 주세요",
     priority: "긴급",
-    dateStart: "후보기간 시작일",
-    dateEnd: "후보기간 종료일",
+    scheduledDate: "예정일",
+    selectScheduledDate: "예정일 선택",
+    scheduledDateHint:
+      "날짜를 탭한 후 드래그하여 기간 선택(PC는 Shift+클릭)",
     deadline: "응답마감일",
     attendees: "대상자",
     required: "필수",

@@ -3,9 +3,19 @@
 import {
   forwardRef,
   useImperativeHandle,
+  useMemo,
   useState,
 } from "react";
 import { motion } from "framer-motion";
+import { enUS, ko } from "date-fns/locale";
+import {
+  addDays,
+  endOfDay,
+  format,
+  parseISO,
+  startOfDay,
+  subDays,
+} from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,18 +29,23 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMeetingStore } from "@/store/meeting-store";
-import { addDays, format, parseISO, subDays } from "date-fns";
 import type { MeetingPriority } from "@/types";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
 import { getMeetingDetailPath } from "@/lib/meeting-routes";
 import { navigateTo } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 import {
   AttendeePicker,
   draftsToAttendeeIds,
   hasUnassignedAttendeeRoles,
   type AttendeeDraft,
 } from "@/components/meetings/attendee-picker";
+import {
+  PastPeriodPicker,
+  formatPastPeriodLabel,
+  type DateRange,
+} from "@/components/meetings/past-period-picker";
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 const DURATION_CUSTOM = "custom";
@@ -54,6 +69,12 @@ function resolveDurationMinutes(
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function defaultScheduledRange(): DateRange {
+  const start = startOfDay(new Date());
+  const end = endOfDay(addDays(start, 7));
+  return { start, end };
+}
+
 export type CreateMeetingFormHandle = {
   saveDraft: () => void;
 };
@@ -63,6 +84,7 @@ export const CreateMeetingForm = forwardRef<CreateMeetingFormHandle>(
     const createMeeting = useMeetingStore((s) => s.createMeeting);
     const sendInvitations = useMeetingStore((s) => s.sendInvitations);
     const { locale, t, formatDuration } = useI18n();
+    const dateLocale = locale === "ko" ? ko : enUS;
 
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
@@ -70,16 +92,22 @@ export const CreateMeetingForm = forwardRef<CreateMeetingFormHandle>(
     const [durationSelect, setDurationSelect] = useState("60");
     const [customDuration, setCustomDuration] = useState("");
     const [priority, setPriority] = useState<MeetingPriority>("none");
-    const [dateStart, setDateStart] = useState(format(new Date(), "yyyy-MM-dd"));
-    const [dateEnd, setDateEnd] = useState(
-      format(addDays(new Date(), 7), "yyyy-MM-dd")
+    const [scheduledRange, setScheduledRange] = useState<DateRange>(
+      defaultScheduledRange
     );
+    const [scheduledPickerOpen, setScheduledPickerOpen] = useState(false);
     const [deadline, setDeadline] = useState(() =>
-      responseDeadlineFromEnd(format(addDays(new Date(), 7), "yyyy-MM-dd"))
+      responseDeadlineFromEnd(
+        format(defaultScheduledRange().end, "yyyy-MM-dd")
+      )
     );
     const [attendeeDrafts, setAttendeeDrafts] = useState<AttendeeDraft[]>([]);
 
     const hasAttendees = attendeeDrafts.length > 0;
+    const scheduledLabel = useMemo(
+      () => formatPastPeriodLabel(scheduledRange, locale, dateLocale),
+      [scheduledRange, locale, dateLocale]
+    );
 
     const buildMeeting = (mode: "submit" | "draft") => {
       if (!title.trim()) {
@@ -119,7 +147,10 @@ export const CreateMeetingForm = forwardRef<CreateMeetingFormHandle>(
         description,
         location,
         duration: durationMinutes,
-        candidateDateRange: { start: dateStart, end: dateEnd },
+        candidateDateRange: {
+          start: format(scheduledRange.start, "yyyy-MM-dd"),
+          end: format(scheduledRange.end, "yyyy-MM-dd"),
+        },
         responseDeadline: deadline,
         priority,
         requiredAttendeeIds,
@@ -163,7 +194,7 @@ export const CreateMeetingForm = forwardRef<CreateMeetingFormHandle>(
           <CardHeader>
             <CardTitle>{t.createForm.details}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 min-w-0 overflow-hidden">
+          <CardContent className="space-y-4 min-w-0 overflow-visible">
             <div className="space-y-2">
               <Label htmlFor="title">{t.createForm.title}</Label>
               <Input
@@ -246,36 +277,44 @@ export const CreateMeetingForm = forwardRef<CreateMeetingFormHandle>(
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-2 min-w-0">
-                <Label htmlFor="dateStart" className="block leading-snug">
-                  {t.createForm.dateStart}
+            <div className="grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2">
+              <div className="relative space-y-2 min-w-0">
+                <Label htmlFor="scheduledDate" className="block leading-snug">
+                  {t.createForm.scheduledDate}
                 </Label>
-                <Input
-                  id="dateStart"
-                  type="date"
-                  className="w-full"
-                  value={dateStart}
-                  onChange={(e) => setDateStart(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2 min-w-0">
-                <Label htmlFor="dateEnd" className="block leading-snug">
-                  {t.createForm.dateEnd}
-                </Label>
-                <Input
-                  id="dateEnd"
-                  type="date"
-                  className="w-full"
-                  value={dateEnd}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setDateEnd(value);
-                    setDeadline(responseDeadlineFromEnd(value));
+                <button
+                  type="button"
+                  id="scheduledDate"
+                  onClick={() => setScheduledPickerOpen((open) => !open)}
+                  aria-expanded={scheduledPickerOpen}
+                  aria-label={t.createForm.selectScheduledDate}
+                  className={cn(
+                    "flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm",
+                    "text-left hover:bg-accent/40 transition-colors",
+                    scheduledPickerOpen && "ring-2 ring-ring ring-offset-2"
+                  )}
+                >
+                  <span className="truncate">{scheduledLabel}</span>
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  {t.createForm.scheduledDateHint}
+                </p>
+                <PastPeriodPicker
+                  open={scheduledPickerOpen}
+                  bound="future"
+                  range={scheduledRange}
+                  onOpenChange={setScheduledPickerOpen}
+                  onChange={(next) => {
+                    setScheduledRange(next);
+                    setDeadline(
+                      responseDeadlineFromEnd(format(next.end, "yyyy-MM-dd"))
+                    );
                   }}
+                  title={t.createForm.selectScheduledDate}
+                  hint={t.createForm.scheduledDateHint}
                 />
               </div>
-              <div className="space-y-2 min-w-0 sm:col-span-2 lg:col-span-1">
+              <div className="space-y-2 min-w-0">
                 <Label htmlFor="deadline" className="block leading-snug">
                   {t.createForm.deadline}
                 </Label>
