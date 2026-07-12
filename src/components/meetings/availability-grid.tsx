@@ -69,6 +69,7 @@ function useAvailabilityPaint(
   const didDragRef = useRef(false);
   const pointerDownSlotRef = useRef<string | null>(null);
   const pointerIdRef = useRef<number | null>(null);
+  const startPointRef = useRef<{ x: number; y: number } | null>(null);
   const availabilityRef = useRef(availability);
   const userIdRef = useRef(userId);
   const onChangeRef = useRef(onChange);
@@ -84,36 +85,35 @@ function useAvailabilityPaint(
 
   const applyPaint = useCallback((slotId: string) => {
     if (!isPaintingRef.current || paintStateRef.current === null) return;
+    if (paintedRef.current.has(slotId)) return;
 
-    const paintOne = (id: string) => {
-      if (paintedRef.current.has(id)) return;
-      paintedRef.current.add(id);
-      const current = getAvailabilityForUser(
-        availabilityRef.current,
-        userIdRef.current,
-        id
-      );
-      if (current !== paintStateRef.current) {
-        onChangeRef.current(id, paintStateRef.current!);
-      }
-    };
-
+    paintedRef.current.add(slotId);
     if (slotId !== pointerDownSlotRef.current) {
-      if (!didDragRef.current && pointerDownSlotRef.current) {
-        didDragRef.current = true;
-        paintOne(pointerDownSlotRef.current);
-      } else {
-        didDragRef.current = true;
-      }
+      didDragRef.current = true;
     }
 
-    paintOne(slotId);
+    const current = getAvailabilityForUser(
+      availabilityRef.current,
+      userIdRef.current,
+      slotId
+    );
+    if (current !== paintStateRef.current) {
+      onChangeRef.current(slotId, paintStateRef.current);
+    }
   }, []);
 
   const endPaint = useCallback(() => {
+    if (!isPaintingRef.current) return;
+
     const slotId = pointerDownSlotRef.current;
-    if (isPaintingRef.current && !didDragRef.current && slotId && paintStateRef.current) {
-      onChangeRef.current(slotId, paintStateRef.current);
+    // Tap only: advance one step. Drag keeps the starting cell's current state.
+    if (!didDragRef.current && slotId) {
+      const current = getAvailabilityForUser(
+        availabilityRef.current,
+        userIdRef.current,
+        slotId
+      );
+      onChangeRef.current(slotId, cycleAvailabilityState(current));
     }
 
     isPaintingRef.current = false;
@@ -122,6 +122,7 @@ function useAvailabilityPaint(
     didDragRef.current = false;
     pointerDownSlotRef.current = null;
     pointerIdRef.current = null;
+    startPointRef.current = null;
     document.body.style.touchAction = "";
   }, []);
 
@@ -135,10 +136,26 @@ function useAvailabilityPaint(
         return;
       }
 
+      const start = startPointRef.current;
+      if (start) {
+        const moved =
+          Math.abs(event.clientX - start.x) > 6 ||
+          Math.abs(event.clientY - start.y) > 6;
+        if (moved) {
+          didDragRef.current = true;
+        }
+      }
+
+      if (!didDragRef.current) return;
+
       if (event.cancelable) {
         event.preventDefault();
       }
 
+      // Paint the starting cell's current state onto slots under the finger.
+      if (pointerDownSlotRef.current) {
+        applyPaint(pointerDownSlotRef.current);
+      }
       const slotId = getSlotIdFromPoint(event.clientX, event.clientY);
       if (slotId) {
         applyPaint(slotId);
@@ -177,14 +194,15 @@ function useAvailabilityPaint(
         userIdRef.current,
         slotId
       );
-      const next = cycleAvailabilityState(current);
 
+      // Drag paints this current state; tap (no drag) cycles on pointer up.
       isPaintingRef.current = true;
-      paintStateRef.current = next;
+      paintStateRef.current = current;
       paintedRef.current = new Set();
       didDragRef.current = false;
       pointerDownSlotRef.current = slotId;
       pointerIdRef.current = event.pointerId;
+      startPointRef.current = { x: event.clientX, y: event.clientY };
       document.body.style.touchAction = "none";
 
       try {
