@@ -657,7 +657,7 @@ export function getDemoNotifications(locale: Locale): Notification[] {
       mk(
         "reminder",
         "응답 대기",
-        `"${m2}" 회의의 가능 시간 응답을 기다리고 있습니다.`,
+        `"${m2}" 회의의 가능 일시 응답을 기다리고 있습니다.`,
         "meeting-2",
         5,
         RESPONSE_PENDING_DEMO_NOTIFICATION_ID

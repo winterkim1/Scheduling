@@ -3,7 +3,7 @@ import type { ChangeReasonKey, PriorityKey, StatusKey } from "./types";
 const status: Record<StatusKey, string> & { attended: string } = {
   draft: "임시저장",
   invitation_sent: "인원 초대",
-  availability_collection: "가능 시간 입력",
+  availability_collection: "가능 일시 입력",
   matching: "매칭",
   recommendation: "리스트업",
   pending_confirmation: "확인",
@@ -145,7 +145,7 @@ export const ko = {
     responseProgressLabel: "응답",
     fullAttendance: "전원 참석",
     attendanceSummary: (attending: number, total: number) => `${attending}/${total}`,
-    submitAvailability: "가능 시간 제출",
+    submitAvailability: "가능 일시 제출",
     editAvailability: "가능 일정 수정",
     responseDeadlineLabel: "응답마감일",
     requestChange: "일정 변경 요청",
@@ -203,10 +203,10 @@ export const ko = {
   availabilityResubmit: {
     title: "가능 일정 재반영",
     description: (title: string) =>
-      `"${title}" 회의의 사유를 입력한 뒤, 나의 가능 시간과 같이 일정을 다시 선택할 수 있습니다. 변경 내역은 로그로 남고 관리자에게 보고됩니다.`,
+      `"${title}" 회의의 사유를 입력한 뒤, 나의 가능 일시와 같이 일정을 다시 선택할 수 있습니다. 변경 내역은 로그로 남고 관리자에게 보고됩니다.`,
     notesPlaceholder: "세부 내용을 입력하세요...",
-    continue: "가능 시간 선택하기",
-    pageTitle: "나의 가능 시간 재선택",
+    continue: "가능 일시 선택하기",
+    pageTitle: "나의 가능 일시 재선택",
     pageDescription:
       "변경할 일정을 다시 선택한 뒤 제출해 주세요. 제출 내역은 관리자에게 보고됩니다.",
     submit: "재반영 요청",
@@ -220,14 +220,14 @@ export const ko = {
       `${slot}: ${before} → ${after}`,
   },
   availabilityPage: {
-    title: "나의 가능 시간",
+    title: "나의 가능 일시",
     hintMobile: "탭",
     hintDesktop: "클릭",
     hintSuffix: "하여 상태 변경: 가능 → 비선호/보류(2번) → 불가(3번)",
     back: "회의로 돌아가기",
-    submit: "가능 시간 제출",
+    submit: "가능 일시 제출",
     preferredTimeBandTitle: "선호 시간대",
-    preferredTimeBandOptional: "선택하지 않아도 가능 시간을 제출할 수 있습니다.",
+    preferredTimeBandOptional: "선택하지 않아도 가능 일시를 제출할 수 있습니다.",
     preferredTimeBandUnset: "미선택",
     preferredTimeBands: {
       morning: "오전",
@@ -235,7 +235,7 @@ export const ko = {
       evening: "저녁",
     },
     preferredTimeBandNote:
-      "참고: 참석자 가능 시간·필수 참석 등 상황에 따라 선호 시간대가 반영되기 어려울 수 있습니다.",
+      "참고: 참석자 가능 일시·필수 참석 등 상황에 따라 선호 시간대가 반영되기 어려울 수 있습니다.",
   },
   createForm: {
     details: "회의 정보",
@@ -423,7 +423,7 @@ export const ko = {
     viewAs: "대상자로 보기",
     viewAsSelf: "주최자(본인)",
     viewingAsHint: (name: string) =>
-      `현재 ${name}님 시점으로 알림·가능 시간을 봅니다`,
+      `현재 ${name}님 시점으로 알림·가능 일시를 봅니다`,
     quickLinks: "바로가기",
     signOut: "로그아웃",
   },
@@ -483,7 +483,7 @@ export const ko = {
     presetLabels: {
       checkAttendance: "참석 가능 여부 확인",
       preferredNot: "비선호/보류 일정 조정",
-      noResponse: "미응답 · 가능 시간 입력 독려",
+      noResponse: "미응답 · 가능 일시 입력 독려",
       requiredAdjust: "필수 참석 · 일정 조율 요청",
       conflict: "일정 충돌 · 조율 가능 여부",
       custom: "직접 입력",
@@ -492,7 +492,7 @@ export const ko = {
       checkAttendance: "이 일정에 참석 가능하신지 확인해 주세요.",
       preferredNot:
         "비선호/보류로 표시하신 시간입니다. 일정 조정이 가능하신가요?",
-      noResponse: "아직 응답이 없습니다. 가능 시간을 입력해 주세요.",
+      noResponse: "아직 응답이 없습니다. 가능 일시를 입력해 주세요.",
       requiredAdjust:
         "필수 참석이 필요합니다. 이 일정에 맞춰 조율을 부탁드려요.",
       conflict:
@@ -588,7 +588,7 @@ export const ko = {
     q2Skipped: "확인 대상이 없어 이 단계를 건너뜁니다.",
     q3: "아니면 기간/마감을 늘릴까?",
     q3Hint:
-      "후보 기간과 응답 마감을 7일 연장하고 가능 시간 입력 단계로 돌아갑니다.",
+      "후보 기간과 응답 마감을 7일 연장하고 가능 일시 입력 단계로 돌아갑니다.",
     q3Waiting: "확정할 수 있으면 연장은 필요 없습니다.",
     extendWindow: "기간·마감 7일 연장",
     confirmAnyway: "확인 없이 바로 확정",
@@ -620,7 +620,7 @@ export const ko = {
       meetings: "회의",
       meetingDetail: "회의 상세 (추천 시간)",
       meetingRecord: "회의 내용 기록",
-      availability: "가능 시간 입력",
+      availability: "가능 일시 입력",
       calendar: "캘린더",
       analytics: "분석",
       notifications: "알림",
@@ -642,7 +642,7 @@ export const ko = {
     scheduleUpdated: "회의 일정이 변경되었고 참석자에게 알림이 전송되었습니다",
     changeRequestCancelled: "일정 변경 요청이 취소되었습니다",
     windowExtended: "후보 기간과 응답 마감을 7일 연장했습니다",
-    availabilitySubmitted: "가능 시간이 제출되었습니다",
+    availabilitySubmitted: "가능 일시가 제출되었습니다",
     availabilityResubmitted: "가능 일정이 재반영되었습니다. 관리자에게 보고되었습니다",
     preferredNotAccepted: "참석 가능으로 응답했습니다. 회의 일정 후보에 등록됩니다.",
     preferredNotDeclined: "참석이 어렵다고 응답했습니다.",

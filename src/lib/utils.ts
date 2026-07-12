@@ -44,7 +44,7 @@ export function getInitials(name: string) {
 export const STATUS_LABELS: Record<string, string> = {
   draft: "임시저장",
   invitation_sent: "인원 초대",
-  availability_collection: "가능 시간 입력",
+  availability_collection: "가능 일시 입력",
   matching: "매칭",
   recommendation: "리스트업",
   pending_confirmation: "확인",
