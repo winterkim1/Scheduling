@@ -101,7 +101,7 @@ export function Timeline({ currentStatus, compact = false }: TimelineProps) {
                     isConfirmedHighlight &&
                       "bg-green-600 border-green-600 text-white ring-4 ring-green-600/25 dark:bg-green-500 dark:border-green-500 dark:ring-green-500/30",
                     isChangeRequestedHighlight &&
-                      "bg-red-600 border-red-600 text-white ring-4 ring-red-600/25 dark:bg-red-500 dark:border-red-500 dark:ring-red-500/30",
+                      "bg-black/90 border-black/90 text-white ring-4 ring-black/20 dark:bg-neutral-100 dark:border-neutral-100 dark:text-neutral-900 dark:ring-neutral-100/25",
                     isPending &&
                       "bg-background border-border text-muted-foreground"
                   )}
@@ -117,7 +117,7 @@ export function Timeline({ currentStatus, compact = false }: TimelineProps) {
                     "text-xs font-medium whitespace-nowrap",
                     isConfirmedHighlight && "text-green-700 dark:text-green-400",
                     isChangeRequestedHighlight &&
-                      "text-red-700 dark:text-red-400",
+                      "text-black/90 dark:text-neutral-200",
                     isCurrent &&
                       !usesSpecialConfirmedStyle &&
                       "text-foreground",
