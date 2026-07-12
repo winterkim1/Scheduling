@@ -69,12 +69,11 @@ export function Timeline({ currentStatus, compact = false }: TimelineProps) {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
             const isPending = index > currentIndex;
-            const isConfirmedHighlight =
+            // 확정 완료 시 마지막 단계는 외곽 링 없이 이전 완료 단계와 동일하게
+            const isConfirmedDone =
               step === "confirmed" && currentStatus === "confirmed";
-            const isChangeRequestedHighlight =
-              step === "confirmed" && currentStatus === "change_requested";
-            const usesSpecialConfirmedStyle =
-              isConfirmedHighlight || isChangeRequestedHighlight;
+            const showAsCompleted = isCompleted || isConfirmedDone;
+            const showAsCurrent = isCurrent && !isConfirmedDone;
 
             return (
               <motion.div
@@ -92,21 +91,15 @@ export function Timeline({ currentStatus, compact = false }: TimelineProps) {
                 <div
                   className={cn(
                     "relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all shrink-0",
-                    isCompleted &&
-                      !usesSpecialConfirmedStyle &&
+                    showAsCompleted &&
                       "bg-primary border-primary text-primary-foreground",
-                    isCurrent &&
-                      !usesSpecialConfirmedStyle &&
+                    showAsCurrent &&
                       "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
-                    isConfirmedHighlight &&
-                      "bg-green-600 border-green-600 text-white ring-4 ring-green-600/25 dark:bg-green-500 dark:border-green-500 dark:ring-green-500/30",
-                    isChangeRequestedHighlight &&
-                      "bg-black/90 border-black/90 text-white ring-4 ring-black/20 dark:bg-neutral-100 dark:border-neutral-100 dark:text-neutral-900 dark:ring-neutral-100/25",
                     isPending &&
                       "bg-background border-border text-muted-foreground"
                   )}
                 >
-                  {isCompleted || (isCurrent && step === "confirmed") ? (
+                  {showAsCompleted || (showAsCurrent && step === "confirmed") ? (
                     <Check className="h-4 w-4" />
                   ) : (
                     <span className="text-xs font-medium">{index + 1}</span>
@@ -115,16 +108,8 @@ export function Timeline({ currentStatus, compact = false }: TimelineProps) {
                 <span
                   className={cn(
                     "text-xs font-medium whitespace-nowrap",
-                    isConfirmedHighlight && "text-green-700 dark:text-green-400",
-                    isChangeRequestedHighlight &&
-                      "text-black/90 dark:text-neutral-200",
-                    isCurrent &&
-                      !usesSpecialConfirmedStyle &&
-                      "text-foreground",
+                    (showAsCurrent || showAsCompleted) && "text-foreground",
                     isPending && "text-muted-foreground",
-                    isCompleted &&
-                      !usesSpecialConfirmedStyle &&
-                      "text-foreground",
                     !compact && "md:mt-2"
                   )}
                 >
