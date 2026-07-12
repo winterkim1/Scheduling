@@ -43,6 +43,8 @@ export const ko = {
     settings: "설정",
     notifications: "알림",
     profile: "프로필",
+    menu: "메뉴",
+    closeMenu: "메뉴 닫기",
     newMeeting: "새 회의",
     recordMeeting: "회의록 작성",
     tagline: "스마트 일정 관리",

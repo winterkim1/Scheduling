@@ -43,6 +43,8 @@ export const en = {
     settings: "Settings",
     notifications: "Notifications",
     profile: "Profile",
+    menu: "Menu",
+    closeMenu: "Close menu",
     newMeeting: "New Meeting",
     recordMeeting: "Write minutes",
     tagline: "Smart Scheduler",

@@ -1,20 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Calendar,
-  Users,
-  BarChart3,
-  Settings,
-  Plus,
-  CalendarClock,
-  Bell,
-} from "lucide-react";
+import { Plus, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { staticHref } from "@/lib/navigation";
 import { useMeetingStore } from "@/store/meeting-store";
+import { getAppNavItems, isAppNavActive } from "@/lib/app-nav";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -22,15 +14,7 @@ export function Sidebar() {
   const unreadCount = useMeetingStore(
     (s) => s.notifications.filter((n) => !n.read).length
   );
-
-  const navItems = [
-    { href: "/", label: t.nav.dashboard, icon: LayoutDashboard },
-    { href: "/meetings", label: t.nav.meetings, icon: Users },
-    { href: "/calendar", label: t.nav.calendar, icon: Calendar },
-    { href: "/notifications", label: t.nav.notifications, icon: Bell },
-    { href: "/analytics", label: t.nav.analytics, icon: BarChart3 },
-    { href: "/settings", label: t.nav.settings, icon: Settings },
-  ];
+  const navItems = getAppNavItems(t);
 
   return (
     <aside className="hidden md:flex flex-col w-64 border-r bg-card h-screen sticky top-0">
@@ -46,10 +30,7 @@ export function Sidebar() {
 
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
+          const isActive = isAppNavActive(pathname, item.href);
           return (
             <a
               key={item.href}

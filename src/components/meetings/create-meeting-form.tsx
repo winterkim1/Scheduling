@@ -130,7 +130,7 @@ export function CreateMeetingForm() {
         <CardHeader>
           <CardTitle>{t.createForm.details}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 min-w-0 overflow-hidden">
           <div className="space-y-2">
             <Label htmlFor="title">{t.createForm.title}</Label>
             <Input
@@ -161,8 +161,8 @@ export function CreateMeetingForm() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="duration">{t.createForm.durationMinutes}</Label>
               <Select value={durationSelect} onValueChange={setDurationSelect}>
                 <SelectTrigger id="duration">
@@ -193,7 +193,7 @@ export function CreateMeetingForm() {
               )}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="priority">{t.createForm.priority}</Label>
               <Select
                 value={priority}
@@ -213,21 +213,27 @@ export function CreateMeetingForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="dateStart">{t.createForm.dateStart}</Label>
+          <div className="grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-2 min-w-0">
+              <Label htmlFor="dateStart" className="block leading-snug">
+                {t.createForm.dateStart}
+              </Label>
               <Input
                 id="dateStart"
                 type="date"
+                className="w-full"
                 value={dateStart}
                 onChange={(e) => setDateStart(e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="dateEnd">{t.createForm.dateEnd}</Label>
+            <div className="space-y-2 min-w-0">
+              <Label htmlFor="dateEnd" className="block leading-snug">
+                {t.createForm.dateEnd}
+              </Label>
               <Input
                 id="dateEnd"
                 type="date"
+                className="w-full"
                 value={dateEnd}
                 onChange={(e) => {
                   const value = e.target.value;
@@ -236,11 +242,14 @@ export function CreateMeetingForm() {
                 }}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="deadline">{t.createForm.deadline}</Label>
+            <div className="space-y-2 min-w-0 sm:col-span-2 lg:col-span-1">
+              <Label htmlFor="deadline" className="block leading-snug">
+                {t.createForm.deadline}
+              </Label>
               <Input
                 id="deadline"
                 type="date"
+                className="w-full"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
               />
