@@ -38,7 +38,7 @@ interface PastPeriodPickerProps {
   onChange: (range: DateRange) => void;
 }
 
-const LONG_PRESS_MS = 380;
+const DRAG_MOVE_THRESHOLD_PX = 8;
 
 function clampToToday(date: Date) {
   const today = startOfDay(new Date());
@@ -58,7 +58,6 @@ export function PastPeriodPicker({
   const [anchor, setAnchor] = useState<Date | null>(null);
   const [draft, setDraft] = useState<DateRange>(range);
 
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragActiveRef = useRef(false);
   const dragAnchorRef = useRef<Date | null>(null);
   const suppressClickRef = useRef(false);
@@ -93,12 +92,6 @@ export function PastPeriodPicker({
     };
   }, [open, onOpenChange]);
 
-  useEffect(() => {
-    return () => {
-      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    };
-  }, []);
-
   const today = startOfDay(new Date());
   const monthStart = startOfMonth(viewMonth);
   const monthEnd = endOfMonth(viewMonth);
@@ -120,13 +113,6 @@ export function PastPeriodPicker({
     const start = startOfDay(minDate([startDay, endDay]));
     const end = startOfDay(maxDate([startDay, endDay]));
     setDraft({ start, end });
-  };
-
-  const clearLongPressTimer = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
   };
 
   const getDayFromPoint = (clientX: number, clientY: number) => {
@@ -169,19 +155,14 @@ export function PastPeriodPicker({
     pointerStartRef.current = { x: event.clientX, y: event.clientY };
     dragActiveRef.current = false;
     dragAnchorRef.current = selected;
-    clearLongPressTimer();
+    setAnchor(selected);
+    setDraft({ start: selected, end: selected });
 
-    longPressTimerRef.current = setTimeout(() => {
-      dragActiveRef.current = true;
-      suppressClickRef.current = true;
-      setAnchor(selected);
-      setDraft({ start: selected, end: selected });
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch {
-        /* ignore */
-      }
-    }, LONG_PRESS_MS);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleDayPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -189,11 +170,14 @@ export function PastPeriodPicker({
     if (!start || !dragAnchorRef.current) return;
 
     const moved =
-      Math.abs(event.clientX - start.x) > 8 || Math.abs(event.clientY - start.y) > 8;
+      Math.abs(event.clientX - start.x) > DRAG_MOVE_THRESHOLD_PX ||
+      Math.abs(event.clientY - start.y) > DRAG_MOVE_THRESHOLD_PX;
+
+    if (!moved && !dragActiveRef.current) return;
 
     if (!dragActiveRef.current) {
-      if (moved) clearLongPressTimer();
-      return;
+      dragActiveRef.current = true;
+      suppressClickRef.current = true;
     }
 
     event.preventDefault();
@@ -203,19 +187,18 @@ export function PastPeriodPicker({
   };
 
   const handleDayPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
-    clearLongPressTimer();
-
     if (dragActiveRef.current) {
       const hovered = getDayFromPoint(event.clientX, event.clientY);
       if (hovered && dragAnchorRef.current) {
         applyRange(dragAnchorRef.current, hovered);
       }
       suppressClickRef.current = true;
-      try {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      } catch {
-        /* ignore */
-      }
+    }
+
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
     }
 
     dragActiveRef.current = false;

@@ -122,7 +122,7 @@ export const ko = {
     clearDateFilter: "날짜 필터 해제",
     selectWeekPeriod: "조회 기간 선택",
     selectWeekPeriodHint:
-      "날짜를 탭하면 하루 선택. 길게 누른 뒤 드래그하면 기간 선택(PC는 Shift+클릭)",
+      "날짜를 탭한 후 드래그하여 기간 선택(PC는 Shift+클릭)",
     applyPeriod: "적용",
     closePeriodPicker: "닫기",
     prevWeek: "이전 주",

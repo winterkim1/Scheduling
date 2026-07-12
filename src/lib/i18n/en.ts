@@ -122,7 +122,7 @@ export const en = {
     clearDateFilter: "Clear date filter",
     selectWeekPeriod: "Select period",
     selectWeekPeriodHint:
-      "Tap a date for one day. Long-press and drag for a range (Shift+click on desktop)",
+      "Tap a date, then drag to select a range (Shift+click on desktop)",
     applyPeriod: "Apply",
     closePeriodPicker: "Close",
     prevWeek: "Previous week",
