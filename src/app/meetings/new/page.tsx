@@ -7,7 +7,6 @@ import {
   CreateMeetingForm,
   type CreateMeetingFormHandle,
 } from "@/components/meetings/create-meeting-form";
-import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 
 export default function NewMeetingPage() {
@@ -23,18 +22,17 @@ export default function NewMeetingPage() {
         <ArrowLeft className="h-4 w-4" />
         {t.meetings.backToList}
       </AppLink>
-      <div className="flex items-center justify-between gap-3 mb-6">
+      <div className="flex items-center justify-between gap-3 min-h-8 mb-6">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight min-w-0">
           {t.meetings.createTitle}
         </h1>
-        <Button
+        <button
           type="button"
-          variant="outline"
-          className="shrink-0"
+          className="text-sm text-muted-foreground hover:text-foreground shrink-0"
           onClick={() => formRef.current?.saveDraft()}
         >
           {t.createForm.saveDraft}
-        </Button>
+        </button>
       </div>
       <CreateMeetingForm ref={formRef} />
     </div>

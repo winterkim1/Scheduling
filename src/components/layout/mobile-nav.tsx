@@ -18,6 +18,7 @@ import { staticHref } from "@/lib/navigation";
 import { getAppNavItems, isAppNavActive } from "@/lib/app-nav";
 
 function MenuIcon({ className }: { className?: string }) {
+  // 4 lines within the same vertical span as Lucide icons (~6–18)
   return (
     <svg
       viewBox="0 0 24 24"
@@ -28,10 +29,10 @@ function MenuIcon({ className }: { className?: string }) {
       className={className}
       aria-hidden="true"
     >
-      <line x1="4" y1="5" x2="20" y2="5" />
-      <line x1="4" y1="9.5" x2="20" y2="9.5" />
-      <line x1="4" y1="14.5" x2="20" y2="14.5" />
-      <line x1="4" y1="19" x2="20" y2="19" />
+      <line x1="5" y1="6" x2="19" y2="6" />
+      <line x1="5" y1="10" x2="19" y2="10" />
+      <line x1="5" y1="14" x2="19" y2="14" />
+      <line x1="5" y1="18" x2="19" y2="18" />
     </svg>
   );
 }
