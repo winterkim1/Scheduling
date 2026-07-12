@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Calendar, Clock, MapPin, Users } from "lucide-react";
 import {
   Dialog,
@@ -10,6 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/meetings/status-badge";
 import { MeetingUrgentLabel } from "@/components/meetings/meeting-urgent-label";
 import { getParticipantCount } from "@/lib/utils";
@@ -21,7 +24,7 @@ interface PreferredNotConfirmationDialogProps {
   meeting?: Meeting;
   onOpenChange: (open: boolean) => void;
   onAccept: () => void;
-  onDecline: () => void;
+  onDecline: (reason: string) => void;
 }
 
 export function PreferredNotConfirmationDialog({
@@ -33,6 +36,15 @@ export function PreferredNotConfirmationDialog({
 }: PreferredNotConfirmationDialogProps) {
   const { t, formatDate, formatTime, formatDuration, formatScheduledDateRange } =
     useI18n();
+  const [declineStep, setDeclineStep] = useState(false);
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setDeclineStep(false);
+      setReason("");
+    }
+  }, [open]);
 
   if (!meeting) return null;
 
@@ -78,60 +90,114 @@ export function PreferredNotConfirmationDialog({
     },
   ];
 
+  const canSendDecline = reason.trim().length > 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t.preferredNotConfirmation.title}</DialogTitle>
+          <DialogTitle>
+            {declineStep
+              ? t.preferredNotConfirmation.declineTitle
+              : t.preferredNotConfirmation.title}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={meeting.status} meeting={meeting} />
-              <MeetingUrgentLabel priority={meeting.priority} />
-            </div>
-            <div>
-              <p className="font-semibold text-base">{meeting.title}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {meeting.description}
+        {!declineStep ? (
+          <>
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={meeting.status} meeting={meeting} />
+                  <MeetingUrgentLabel priority={meeting.priority} />
+                </div>
+                <div>
+                  <p className="font-semibold text-base">{meeting.title}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {meeting.description}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {summaryItems.map(({ icon: Icon, label, value }) => (
+                    <div
+                      key={label}
+                      className="rounded-md border bg-background p-3 flex items-start gap-2"
+                    >
+                      <Icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-muted-foreground">{label}</p>
+                        <p className="text-sm font-medium truncate">{value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <DialogDescription className="text-foreground/90 leading-relaxed text-sm space-y-1">
+                <span className="block">{t.preferredNotConfirmation.bodyLine1}</span>
+                <span className="block">{t.preferredNotConfirmation.bodyLine2}</span>
+              </DialogDescription>
+
+              <p className="text-xs text-muted-foreground/70">
+                <span className="text-muted-foreground">*</span>
+                {t.preferredNotConfirmation.footnote}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {summaryItems.map(({ icon: Icon, label, value }) => (
-                <div
-                  key={label}
-                  className="rounded-md border bg-background p-3 flex items-start gap-2"
-                >
-                  <Icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">{label}</p>
-                    <p className="text-sm font-medium truncate">{value}</p>
-                  </div>
-                </div>
-              ))}
+
+            <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+              <Button className="w-full" variant="success" onClick={onAccept}>
+                {t.preferredNotConfirmation.accept}
+              </Button>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => setDeclineStep(true)}
+              >
+                {t.preferredNotConfirmation.decline}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <div className="space-y-3 py-1">
+              <DialogDescription className="text-sm text-muted-foreground">
+                {t.preferredNotConfirmation.declineHint}
+              </DialogDescription>
+              <div className="space-y-2">
+                <Label htmlFor="decline-reason">
+                  {t.preferredNotConfirmation.declineReasonLabel}
+                </Label>
+                <Textarea
+                  id="decline-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder={t.preferredNotConfirmation.declineReasonPlaceholder}
+                  rows={4}
+                />
+              </div>
             </div>
-          </div>
 
-          <DialogDescription className="text-foreground/90 leading-relaxed text-sm space-y-1">
-            <span className="block">{t.preferredNotConfirmation.bodyLine1}</span>
-            <span className="block">{t.preferredNotConfirmation.bodyLine2}</span>
-          </DialogDescription>
-
-          <p className="text-xs text-muted-foreground/70">
-            <span className="text-muted-foreground">*</span>
-            {t.preferredNotConfirmation.footnote}
-          </p>
-        </div>
-
-        <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
-          <Button className="w-full" variant="success" onClick={onAccept}>
-            {t.preferredNotConfirmation.accept}
-          </Button>
-          <Button className="w-full" variant="outline" onClick={onDecline}>
-            {t.preferredNotConfirmation.decline}
-          </Button>
-        </DialogFooter>
+            <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+              <Button
+                className="w-full"
+                disabled={!canSendDecline}
+                onClick={() => onDecline(reason.trim())}
+              >
+                {t.preferredNotConfirmation.declineSend}
+              </Button>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => {
+                  setDeclineStep(false);
+                  setReason("");
+                }}
+              >
+                {t.preferredNotConfirmation.declineBack}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

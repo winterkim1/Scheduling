@@ -3,7 +3,7 @@ import type { ChangeReasonKey, PriorityKey, StatusKey } from "./types";
 const status: Record<StatusKey, string> & { attended: string } = {
   draft: "임시저장",
   invitation_sent: "인원 초대",
-  availability_collection: "가능 시간 수집",
+  availability_collection: "가능 시간 입력",
   matching: "매칭",
   recommendation: "리스트업",
   pending_confirmation: "확인",
@@ -151,11 +151,40 @@ export const ko = {
     participants: "대상자",
     participantsConfirmed: "참석자",
     meetingTimeCandidates: "회의 일정 후보",
+    matchingResult: "매칭 결과",
+    matchingResultHint: "숫자 = 가능 인원입니다.",
+    matchingResultCollapsedHint: "탭하여 매칭 결과 표를 펼칩니다.",
+    matchingResultTime: "시간",
+    matchingPreferenceTitle: "시간대별 선호",
+    matchingPreferenceEmpty: "선호 시간대 응답 없음",
+    matchingResultLegend:
+      "초록: 전원 가능 · 노랑: 선택 인원 일부 불가 · 빨강: 필수 인원만 가능 · 흰색: 필수 인원 불가",
+    matchingResultCellDetail: (
+      available: number,
+      preferredNot: number,
+      total: number
+    ) =>
+      `가능 ${available}명` +
+      (preferredNot > 0 ? ` · 비선호/보류 ${preferredNot}명` : "") +
+      ` / 전체 ${total}명`,
+    matchingResultBestPick: "추천 일정",
+    matchingResultSelectedPick: "선택한 일정",
+    matchingResultFullOk: (when: string) => `[전원 가능] ${when}`,
+    matchingResultFallback: (when: string, adjustCount: number) =>
+      `[차선] ${when}` +
+      (adjustCount > 0 ? ` · 조정/확인 ${adjustCount}명` : ""),
+    candidateTimeColumn: "가능 시간대",
+    candidateAttendanceColumn: "참석 인원",
+    candidateRankColumn: "순위",
+    candidateListEmpty: "필수 인원이 모두 가능한 후보가 없습니다.",
+    candidateDaySummary: (slotCount: number, ranksLabel: string) =>
+      `후보 ${slotCount}개 · ${ranksLabel}`,
+    confirmThisTime: "이 시간으로 확정",
     hideDetails: "상세 숨기기",
     manualCoordination: "수동 조율",
     changeRequestsTitle: "일정 변경 요청",
     requiredAttendee: "필수 대상자",
-    optionalAttendee: "선택 대상자",
+    optionalAttendee: "선택",
     keepMeeting: "현재 일정 유지",
     startReCoordination: "재조율 시작",
     reMatchingProgress: "재매칭 진행 중...",
@@ -194,6 +223,16 @@ export const ko = {
     hintSuffix: "하여 상태 변경: 가능 → 비선호/보류(2번) → 불가(3번)",
     back: "회의로 돌아가기",
     submit: "가능 시간 제출",
+    preferredTimeBandTitle: "선호 시간대",
+    preferredTimeBandOptional: "선택하지 않아도 가능 시간을 제출할 수 있습니다.",
+    preferredTimeBandUnset: "미선택",
+    preferredTimeBands: {
+      morning: "오전",
+      afternoon: "오후",
+      evening: "저녁",
+    },
+    preferredTimeBandNote:
+      "참고: 참석자 가능 시간·필수 참석 등 상황에 따라 선호 시간대가 반영되기 어려울 수 있습니다.",
   },
   createForm: {
     details: "회의 정보",
@@ -394,6 +433,40 @@ export const ko = {
     accept: "수락",
     decline: "거절",
   },
+  confirmationRequestModal: {
+    title: "확인 요청 보내기",
+    description: (name: string, meeting: string) =>
+      `${name}님에게 "${meeting}" 확인 요청 알림을 보냅니다.`,
+    dateLabel: "확인 요청할 일정",
+    datePlaceholder: "일정을 선택하세요",
+    customSchedule: "직접 설정",
+    customScheduleHint: "확인할 날짜와 시작 시간을 직접 골라 주세요.",
+    customDate: "날짜",
+    customTime: "시간",
+    messageLabel: "멘트",
+    rank: (n: number) => `${n}순위`,
+    send: "알림 보내기",
+    customPlaceholder: "전달할 멘트를 직접 입력하세요",
+    clickHint: "탭하여 확인 요청",
+    presetLabels: {
+      checkAttendance: "참석 가능 여부 확인",
+      preferredNot: "비선호/보류 일정 조정",
+      noResponse: "미응답 · 가능 시간 입력 독려",
+      requiredAdjust: "필수 참석 · 일정 조율 요청",
+      conflict: "일정 충돌 · 조율 가능 여부",
+      custom: "직접 입력",
+    },
+    presets: {
+      checkAttendance: "이 일정에 참석 가능하신지 확인해 주세요.",
+      preferredNot:
+        "비선호/보류로 표시하신 시간입니다. 일정 조정이 가능하신가요?",
+      noResponse: "아직 응답이 없습니다. 가능 시간을 입력해 주세요.",
+      requiredAdjust:
+        "필수 참석이 필요합니다. 이 일정에 맞춰 조율을 부탁드려요.",
+      conflict:
+        "다른 일정과 겹칠 수 있습니다. 조율 가능 여부를 알려주세요.",
+    },
+  },
   preferredNotConfirmation: {
     title: "일정 확인 요청",
     bodyLine1: "매칭 결과, 추천 후보지에 비선호/보류 시간이 포함되어 있습니다.",
@@ -402,6 +475,15 @@ export const ko = {
     footnote: " 참석 가능으로 응답 시 회의 일정 후보에 등록됩니다.",
     accept: "네",
     decline: "아니오",
+    declineTitle: "참석 불가 사유",
+    declineHint: "참석이 어려운 사유를 입력한 뒤 전송해 주세요. 주최자에게 전달됩니다.",
+    declineReasonLabel: "사유",
+    declineReasonPlaceholder: "사유를 입력하세요...",
+    declineSend: "전송",
+    declineBack: "이전",
+    declineNotifyTitle: "참석 불가 응답",
+    declineNotifyMessage: (name: string, meeting: string, reason: string) =>
+      `${name}님이 "${meeting}" 일정 확인에서 참석 불가로 응답했습니다. 사유: ${reason}`,
   },
   changeModal: {
     title: "일정 변경 요청",
@@ -419,10 +501,10 @@ export const ko = {
     preferredNot: (n: number) => `비선호/보류: ${n}명`,
     privacyHint:
       "개인정보 보호를 위해 이름이 숨겨져 있습니다. 수동 조율 모드를 켜면 확인할 수 있습니다.",
-    selectTime: "일정 등록",
+    selectTime: "일정 선택",
     selected: "선택됨",
-    reasonRequired: (a: number, t: number) => `필수 대상자: ${a}/${t}`,
-    reasonOptional: (a: number, t: number) => `선택 대상자: ${a}/${t}`,
+    reasonRequired: (a: number, t: number) => `필수: ${a}/${t}`,
+    reasonOptional: (a: number, t: number) => `선택: ${a}/${t}`,
     reasonPreferredNot: (n: number) =>
       `${n}명이 이 시간을 비선호/보류로 표시했습니다`,
     reasonUnavailable: (n: number) => `선택 대상자 ${n}명 불가`,
@@ -444,6 +526,35 @@ export const ko = {
   timeline: {
     changeRequested: "일정 변경 요청됨 — 주최자 결정 대기 중",
     reMatching: "재매칭 진행 중",
+  },
+  organizerDecision: {
+    q1: "지금 확정할 수 있나?",
+    q1YesHint: "필수 대상자 전원이 가능합니다. 바로 확정할 수 있습니다.",
+    q1NoHint: "아직 확정하기 어렵습니다. 아래 확인이 필요합니다.",
+    q2: "아니면 누구 확인이 필요한가?",
+    q2Waiting: "확정이 가능하면 이 단계는 필요 없습니다.",
+    q2Skipped: "확인 대상이 없어 이 단계를 건너뜁니다.",
+    q3: "아니면 기간/마감을 늘릴까?",
+    q3Hint:
+      "후보 기간과 응답 마감을 7일 연장하고 가능 시간 입력 단계로 돌아갑니다.",
+    q3Waiting: "확정할 수 있으면 연장은 필요 없습니다.",
+    extendWindow: "기간·마감 7일 연장",
+    confirmAnyway: "확인 없이 바로 확정",
+    slotSummary: (required: number, total: number, preferredNot: number) =>
+      `필수 ${required}/${total} 가능` +
+      (preferredNot > 0 ? ` · 비선호/보류 ${preferredNot}명` : ""),
+    noFullSlot: "전원 가능 슬롯 없음",
+    readyLabel: (when: string) => `확정 가능: ${when}`,
+    fallbackLabel: (when: string) => `차선: ${when}`,
+    selectedLabel: (when: string) => `선택: ${when}`,
+    host: "주최",
+    rosterTitle: "이 시간 기준 · 대상자 응답 (주최자 전용)",
+    rosterHint:
+      "표를 읽지 않아도 됩니다. 누구에게 확인·일정 조정 알림을 보낼지 정리했습니다.",
+    actionConfirm: "확인 요청 (비선호/보류)",
+    actionAdjust: "일정 조정 요청 (불가)",
+    actionNudge: "응답 독려 (미응답)",
+    actionOk: "가능",
   },
   preview: {
     title: "MeetFlow 미리보기",
@@ -467,6 +578,8 @@ export const ko = {
   },
   toast: {
     confirmRequestsSent: "확인 요청을 보냈습니다",
+    confirmRequestSentTo: (name: string) =>
+      `${name}님에게 확인 요청을 보냈습니다`,
     meetingConfirmed: "회의가 확정되었습니다!",
     attendanceConfirmed: "참석이 확인되었습니다",
     declinedReMatching: "거절됨 — 주최자에게 재매칭 알림이 전송됩니다",
@@ -475,6 +588,7 @@ export const ko = {
     newRecommendations: "새 추천 시간이 준비되었습니다",
     changeSubmitted: "일정 변경 요청이 제출되었습니다",
     changeRequestCancelled: "일정 변경 요청이 취소되었습니다",
+    windowExtended: "후보 기간과 응답 마감을 7일 연장했습니다",
     availabilitySubmitted: "가능 시간이 제출되었습니다",
     availabilityResubmitted: "가능 일정이 재반영되었습니다. 관리자에게 보고되었습니다",
     preferredNotAccepted: "참석 가능으로 응답했습니다. 회의 일정 후보에 등록됩니다.",

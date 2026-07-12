@@ -3,7 +3,7 @@ import type { ChangeReasonKey, PriorityKey, StatusKey } from "./types";
 const status: Record<StatusKey, string> & { attended: string } = {
   draft: "Saved draft",
   invitation_sent: "Invite attendees",
-  availability_collection: "Collect availability",
+  availability_collection: "Enter availability",
   matching: "Matching",
   recommendation: "List-up",
   pending_confirmation: "Confirmation",
@@ -150,12 +150,41 @@ export const en = {
     confirmedTime: "Confirmed time",
     participants: "Participants",
     participantsConfirmed: "Attendees",
-    meetingTimeCandidates: "Meeting time options",
+    meetingTimeCandidates: "Meeting schedule candidates",
+    matchingResult: "Matching results",
+    matchingResultHint: "Numbers = people available.",
+    matchingResultCollapsedHint: "Tap to expand the matching grid.",
+    matchingResultTime: "Time",
+    matchingPreferenceTitle: "Preferred time of day",
+    matchingPreferenceEmpty: "No preferred-time responses yet",
+    matchingResultLegend:
+      "Green: everyone free · Yellow: some optional unavailable · Red: required attendees only · White: required unavailable",
+    matchingResultCellDetail: (
+      available: number,
+      preferredNot: number,
+      total: number
+    ) =>
+      `${available} available` +
+      (preferredNot > 0 ? ` · ${preferredNot} preferred-not` : "") +
+      ` / ${total} total`,
+    matchingResultBestPick: "Recommended time",
+    matchingResultSelectedPick: "Selected time",
+    matchingResultFullOk: (when: string) => `[Everyone free] ${when}`,
+    matchingResultFallback: (when: string, adjustCount: number) =>
+      `[Fallback] ${when}` +
+      (adjustCount > 0 ? ` · ${adjustCount} need follow-up` : ""),
+    candidateTimeColumn: "Available time",
+    candidateAttendanceColumn: "Attendance",
+    candidateRankColumn: "Rank",
+    candidateListEmpty: "No candidates where all required attendees are free.",
+    candidateDaySummary: (slotCount: number, ranksLabel: string) =>
+      `${slotCount} option(s) · ${ranksLabel}`,
+    confirmThisTime: "Confirm this time",
     hideDetails: "Hide details",
     manualCoordination: "Manual coordination",
     changeRequestsTitle: "Change requests",
     requiredAttendee: "Required attendee",
-    optionalAttendee: "Optional attendee",
+    optionalAttendee: "Optional",
     keepMeeting: "Keep current meeting",
     startReCoordination: "Start re-coordination",
     reMatchingProgress: "Re-matching in progress...",
@@ -195,6 +224,17 @@ export const en = {
     hintSuffix: " to cycle: Available → Preferred Not (2nd) → Unavailable (3rd)",
     back: "Back to meeting",
     submit: "Submit availability",
+    preferredTimeBandTitle: "Preferred time of day",
+    preferredTimeBandOptional:
+      "You can submit availability without selecting a preference.",
+    preferredTimeBandUnset: "Not selected",
+    preferredTimeBands: {
+      morning: "Morning",
+      afternoon: "Afternoon",
+      evening: "Evening",
+    },
+    preferredTimeBandNote:
+      "Note: Depending on others’ availability and required attendees, preferred times may not always be reflected.",
   },
   createForm: {
     details: "Meeting details",
@@ -394,6 +434,41 @@ export const en = {
     accept: "Accept",
     decline: "Decline",
   },
+  confirmationRequestModal: {
+    title: "Send confirmation request",
+    description: (name: string, meeting: string) =>
+      `Send a confirmation request to ${name} for "${meeting}".`,
+    dateLabel: "Time to confirm",
+    datePlaceholder: "Select a time",
+    customSchedule: "Custom schedule",
+    customScheduleHint: "Pick the date and start time to confirm.",
+    customDate: "Date",
+    customTime: "Time",
+    messageLabel: "Message",
+    rank: (n: number) => `Rank ${n}`,
+    send: "Send notification",
+    customPlaceholder: "Write your own message",
+    clickHint: "Tap to request confirmation",
+    presetLabels: {
+      checkAttendance: "Confirm attendance",
+      preferredNot: "Adjust preferred-not time",
+      noResponse: "Nudge · submit availability",
+      requiredAdjust: "Required · please coordinate",
+      conflict: "Possible conflict · can you adjust?",
+      custom: "Custom message",
+    },
+    presets: {
+      checkAttendance: "Please confirm whether you can attend at this time.",
+      preferredNot:
+        "You marked this time as preferred-not. Can you adjust your schedule?",
+      noResponse:
+        "We haven’t received your response yet. Please submit availability.",
+      requiredAdjust:
+        "Your attendance is required. Please coordinate for this time.",
+      conflict:
+        "This may conflict with another commitment. Can you coordinate?",
+    },
+  },
   preferredNotConfirmation: {
     title: "Schedule confirmation",
     bodyLine1:
@@ -403,6 +478,16 @@ export const en = {
     footnote: " If you respond as available, this time will be registered as a meeting candidate.",
     accept: "Yes",
     decline: "No",
+    declineTitle: "Reason for not attending",
+    declineHint:
+      "Please enter why you cannot attend. This will be sent to the organizer.",
+    declineReasonLabel: "Reason",
+    declineReasonPlaceholder: "Enter your reason...",
+    declineSend: "Send",
+    declineBack: "Back",
+    declineNotifyTitle: "Unable to attend",
+    declineNotifyMessage: (name: string, meeting: string, reason: string) =>
+      `${name} declined attendance for "${meeting}". Reason: ${reason}`,
   },
   changeModal: {
     title: "Request meeting change",
@@ -421,10 +506,10 @@ export const en = {
       `Preferred-not: ${n} ${n === 1 ? "person" : "people"}`,
     privacyHint:
       "Names hidden for privacy. Enable manual coordination to see details.",
-    selectTime: "Select this time",
+    selectTime: "Select schedule",
     selected: "Selected",
-    reasonRequired: (a: number, t: number) => `Required attendees: ${a}/${t}`,
-    reasonOptional: (a: number, t: number) => `Optional attendees: ${a}/${t}`,
+    reasonRequired: (a: number, t: number) => `Required: ${a}/${t}`,
+    reasonOptional: (a: number, t: number) => `Optional: ${a}/${t}`,
     reasonPreferredNot: (n: number) =>
       `${n} participant${n > 1 ? "s" : ""} marked this as preferred-not`,
     reasonUnavailable: (n: number) =>
@@ -448,6 +533,35 @@ export const en = {
     changeRequested: "Change requested — awaiting organizer decision",
     reMatching: "Re-matching in progress",
   },
+  organizerDecision: {
+    q1: "Can we confirm now?",
+    q1YesHint: "All required attendees are available. You can confirm now.",
+    q1NoHint: "Not ready to confirm yet. Check the next step.",
+    q2: "Or who needs confirmation?",
+    q2Waiting: "Skip this if you can confirm now.",
+    q2Skipped: "No one needs confirmation.",
+    q3: "Or extend the period / deadline?",
+    q3Hint:
+      "Extend the candidate range and response deadline by 7 days, then return to availability input.",
+    q3Waiting: "No need to extend if you can confirm.",
+    extendWindow: "Extend period & deadline by 7 days",
+    confirmAnyway: "Confirm without waiting",
+    slotSummary: (required: number, total: number, preferredNot: number) =>
+      `Required ${required}/${total} available` +
+      (preferredNot > 0 ? ` · preferred-not ${preferredNot}` : ""),
+    noFullSlot: "No full-availability slot",
+    readyLabel: (when: string) => `Ready to confirm: ${when}`,
+    fallbackLabel: (when: string) => `Fallback: ${when}`,
+    selectedLabel: (when: string) => `Selected: ${when}`,
+    host: "Host",
+    rosterTitle: "Responses for this time (host only)",
+    rosterHint:
+      "You don’t need to read the grid. Here’s who to confirm or ask to adjust.",
+    actionConfirm: "Ask to confirm (preferred-not)",
+    actionAdjust: "Ask to adjust schedule (unavailable)",
+    actionNudge: "Nudge (no response)",
+    actionOk: "Available",
+  },
   preview: {
     title: "MeetFlow Preview",
     subtitle: "PC · Mobile side-by-side",
@@ -470,6 +584,8 @@ export const en = {
   },
   toast: {
     confirmRequestsSent: "Confirmation requests sent",
+    confirmRequestSentTo: (name: string) =>
+      `Confirmation request sent to ${name}`,
     meetingConfirmed: "Meeting confirmed!",
     attendanceConfirmed: "Attendance confirmed",
     declinedReMatching: "Declined — organizer will be notified for re-matching",
@@ -478,6 +594,7 @@ export const en = {
     newRecommendations: "New recommendations ready",
     changeSubmitted: "Change request submitted",
     changeRequestCancelled: "Change request cancelled",
+    windowExtended: "Candidate period and response deadline extended by 7 days",
     availabilitySubmitted: "Availability submitted",
     availabilityResubmitted:
       "Availability updated and reported to the administrator",

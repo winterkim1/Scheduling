@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { format, parseISO } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import type {
   Meeting,
   Notification,
   CreateMeetingInput,
   AvailabilityState,
   DayLeavePreset,
+  PreferredTimeBand,
   ChangeRequestReason,
   DashboardStats,
   ResponseReminderInterval,
@@ -124,6 +125,14 @@ function applyMeetingDemoOverrides(meeting: Meeting): Meeting {
       priority: "urgent",
       candidateDateRange: { ...MEETING_1_CANDIDATE_DATE_RANGE },
       responseDeadline: MEETING_1_RESPONSE_DEADLINE,
+      preferredTimeBandsByUser: {
+        [CURRENT_USER_ID]: ["morning", "afternoon"],
+        "user-2": ["morning"],
+        "user-3": ["afternoon"],
+        "user-4": ["morning", "afternoon"],
+        "user-5": ["evening"],
+        "user-6": ["afternoon"],
+      },
     };
   }
 
@@ -234,6 +243,11 @@ interface MeetingStore {
     date: string,
     preset: DayLeavePreset
   ) => void;
+  setPreferredTimeBands: (
+    meetingId: string,
+    userId: string,
+    bands: PreferredTimeBand[]
+  ) => void;
   submitAvailability: (meetingId: string, userId: string) => void;
   pendingAvailabilityResubmit: PendingAvailabilityResubmit | null;
   setPendingAvailabilityResubmit: (
@@ -246,6 +260,18 @@ interface MeetingStore {
   resubmitAvailability: (meetingId: string, userId: string) => void;
   runMatching: (id: string) => void;
   selectRecommendation: (meetingId: string, index: number) => void;
+  confirmMeetingSlot: (meetingId: string, slotId: string) => void;
+  sendConfirmationRequests: (meetingId: string, index: number) => void;
+  sendConfirmationRequestToUser: (
+    meetingId: string,
+    userId: string,
+    options: {
+      slotStart: string;
+      message: string;
+      recommendationIndex?: number;
+    }
+  ) => void;
+  extendSchedulingWindow: (meetingId: string, days?: number) => void;
   respondToConfirmation: (
     meetingId: string,
     userId: string,
@@ -256,7 +282,8 @@ interface MeetingStore {
     userId: string,
     accept: boolean,
     slotDate: string,
-    slotTime: string
+    slotTime: string,
+    declineReason?: string
   ) => void;
   confirmMeeting: (meetingId: string) => void;
   requestChange: (
@@ -459,6 +486,32 @@ export const useMeetingStore = create<MeetingStore>()(
         }));
       },
 
+      setPreferredTimeBands: (meetingId, userId, bands) => {
+        set((s) => ({
+          meetings: s.meetings.map((m) => {
+            if (m.id !== meetingId) return m;
+
+            const preferredTimeBandsByUser = {
+              ...(m.preferredTimeBandsByUser ?? {}),
+            };
+
+            if (bands.length === 0) {
+              delete preferredTimeBandsByUser[userId];
+            } else {
+              preferredTimeBandsByUser[userId] = bands;
+            }
+
+            return {
+              ...m,
+              preferredTimeBandsByUser:
+                Object.keys(preferredTimeBandsByUser).length > 0
+                  ? preferredTimeBandsByUser
+                  : undefined,
+            };
+          }),
+        }));
+      },
+
       submitAvailability: (meetingId, userId) => {
         set((s) => ({
           meetings: s.meetings.map((m) => {
@@ -601,11 +654,31 @@ export const useMeetingStore = create<MeetingStore>()(
         if (!meeting) return;
         const rec = meeting.recommendations[index];
         if (!rec) return;
+        get().confirmMeetingSlot(meetingId, rec.slot.id);
+      },
+
+      confirmMeetingSlot: (meetingId, slotId) => {
+        const meeting = get().getMeeting(meetingId);
+        if (!meeting) return;
+
+        const fromRecommendations = meeting.recommendations.find(
+          (rec) => rec.slot.id === slotId
+        );
+        const slot =
+          fromRecommendations?.slot ??
+          meeting.candidateSlots.find((candidate) => candidate.id === slotId);
+        if (!slot) return;
+
+        const recommendationIndex = meeting.recommendations.findIndex(
+          (rec) => rec.slot.id === slotId
+        );
         const locale = get().locale;
 
         get().updateMeeting(meetingId, {
-          selectedRecommendationIndex: index,
-          confirmedSlot: rec.slot,
+          ...(recommendationIndex >= 0
+            ? { selectedRecommendationIndex: recommendationIndex }
+            : {}),
+          confirmedSlot: slot,
           status: "confirmed",
           confirmedAt: new Date().toISOString(),
         });
@@ -616,6 +689,124 @@ export const useMeetingStore = create<MeetingStore>()(
             ...s.notifications,
           ],
         }));
+      },
+
+      sendConfirmationRequests: (meetingId, index) => {
+        const meeting = get().getMeeting(meetingId);
+        if (!meeting) return;
+        const rec = meeting.recommendations[index];
+        if (!rec) return;
+        const t = getTranslations(get().locale);
+        const preferredIds = new Set(rec.preferredNotUserIds);
+        const slotDate = format(parseISO(rec.slot.start), "yyyy-MM-dd");
+        const slotTime = format(parseISO(rec.slot.start), "HH:mm");
+
+        get().updateMeeting(meetingId, {
+          selectedRecommendationIndex: index,
+          status: "pending_confirmation",
+          attendees: meeting.attendees.map((attendee) =>
+            preferredIds.has(attendee.userId)
+              ? { ...attendee, confirmationStatus: "pending" as const }
+              : attendee
+          ),
+        });
+
+        const requestNotifications = rec.preferredNotUserIds
+          .filter((userId, i, list) => list.indexOf(userId) === i)
+          .filter((userId) => userId !== meeting.organizerId)
+          .map((userId) => {
+            const user = getUserById(userId, get().locale);
+            return createNotification(
+              "confirmation_required",
+              t.confirmation.requestTitle,
+              `${meeting.title} · ${slotDate} ${slotTime} · ${user?.name ?? t.common.unknown}`,
+              meetingId
+            );
+          });
+
+        set((s) => ({
+          notifications: [...requestNotifications, ...s.notifications],
+        }));
+      },
+
+      sendConfirmationRequestToUser: (meetingId, userId, options) => {
+        const meeting = get().getMeeting(meetingId);
+        if (!meeting || userId === meeting.organizerId) return;
+
+        const t = getTranslations(get().locale);
+        const user = getUserById(userId, get().locale);
+        const slotDate = format(parseISO(options.slotStart), "yyyy-MM-dd");
+        const slotTime = format(parseISO(options.slotStart), "HH:mm");
+        const nextStatus =
+          meeting.status === "recommendation" ||
+          meeting.status === "pending_confirmation"
+            ? ("pending_confirmation" as const)
+            : meeting.status;
+
+        get().updateMeeting(meetingId, {
+          ...(options.recommendationIndex !== undefined
+            ? { selectedRecommendationIndex: options.recommendationIndex }
+            : {}),
+          status: nextStatus,
+          attendees: meeting.attendees.map((attendee) =>
+            attendee.userId === userId
+              ? { ...attendee, confirmationStatus: "pending" as const }
+              : attendee
+          ),
+        });
+
+        set((s) => ({
+          notifications: [
+            createNotification(
+              "confirmation_required",
+              t.confirmation.requestTitle,
+              `${meeting.title} · ${slotDate} ${slotTime} · ${user?.name ?? t.common.unknown}\n${options.message}`,
+              meetingId
+            ),
+            ...s.notifications,
+          ],
+        }));
+      },
+
+      extendSchedulingWindow: (meetingId, days = 7) => {
+        const meeting = get().getMeeting(meetingId);
+        if (!meeting) return;
+
+        const newEnd = format(
+          addDays(parseISO(meeting.candidateDateRange.end), days),
+          "yyyy-MM-dd"
+        );
+        const newDeadline = format(
+          addDays(parseISO(meeting.responseDeadline), days),
+          "yyyy-MM-dd"
+        );
+        const slots = generateCandidateSlots(
+          meeting.candidateDateRange.start,
+          newEnd,
+          meeting.duration
+        );
+        const slotIds = new Set(slots.map((slot) => slot.id));
+
+        get().updateMeeting(meetingId, {
+          candidateDateRange: {
+            start: meeting.candidateDateRange.start,
+            end: newEnd,
+          },
+          responseDeadline: newDeadline,
+          candidateSlots: slots,
+          availability: meeting.availability.filter((entry) =>
+            slotIds.has(entry.slotId)
+          ),
+          recommendations: [],
+          selectedRecommendationIndex: undefined,
+          status: "availability_collection",
+          attendees: meeting.attendees.map((attendee) => ({
+            ...attendee,
+            hasResponded: false,
+            confirmationStatus: undefined,
+          })),
+          organizerHasResponded: false,
+        });
       },
 
       respondToConfirmation: (meetingId, userId, accept) => {
@@ -689,7 +880,8 @@ export const useMeetingStore = create<MeetingStore>()(
         userId,
         accept,
         slotDate,
-        slotTime
+        slotTime,
+        declineReason
       ) => {
         const meeting = get().getMeeting(meetingId);
         if (!meeting) return;
@@ -707,6 +899,26 @@ export const useMeetingStore = create<MeetingStore>()(
           slot.id,
           accept ? "available" : "unavailable"
         );
+
+        if (!accept && declineReason?.trim()) {
+          const t = getTranslations(get().locale);
+          const user = getUserById(userId, get().locale);
+          set((s) => ({
+            notifications: [
+              createNotification(
+                "change_request",
+                t.preferredNotConfirmation.declineNotifyTitle,
+                t.preferredNotConfirmation.declineNotifyMessage(
+                  user?.name ?? t.common.unknown,
+                  meeting.title,
+                  declineReason.trim()
+                ),
+                meetingId
+              ),
+              ...s.notifications,
+            ],
+          }));
+        }
       },
 
       confirmMeeting: (meetingId) => {
@@ -868,7 +1080,7 @@ export const useMeetingStore = create<MeetingStore>()(
         ),
     }),
     {
-      name: "meeting-scheduler-storage-v9",
+      name: "meeting-scheduler-storage-v16",
       partialize: (state) => ({
         meetings: state.meetings,
         notifications: state.notifications,

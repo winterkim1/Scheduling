@@ -102,55 +102,120 @@ const ALL_INVITEE_IDS = ["user-2", "user-3", "user-4", "user-5", "user-6"] as co
 
 export const MEETING_1_CANDIDATE_DATE_RANGE = {
   start: "2026-07-13",
-  end: "2026-07-16",
+  end: "2026-07-17",
 } as const;
 
 export const MEETING_1_RESPONSE_DEADLINE = "2026-07-10T11:00:00";
 export const MEETING_2_RESPONSE_DEADLINE = "2026-07-10T10:00:00";
 
 export const MEETING_1_FEATURED_SLOT = {
-  date: "2026-07-14",
+  date: "2026-07-13",
   time: "10:00",
 } as const;
 
-const MEETING_1_PREFERRED_NOT_SEEDS = [
-  { date: "2026-07-13", time: "11:00", userId: "user-5" },
+/** 엔진 점수와 동일하게 나오도록: 필수 전원 가능 슬롯은 이 3개만 둔다. */
+const MEETING_1_RANK_SLOTS = [
+  // 1순위: 선택 전원 가능
+  { date: "2026-07-13", time: "10:00", unavailableOptional: [] as const },
+  // 2순위: 선택 2/3 — 한소희(user-6) 불가
+  {
+    date: "2026-07-14",
+    time: "10:00",
+    unavailableOptional: ["user-6"] as const,
+  },
+  // 3순위: 선택 1/3 — 한소희·정태영 불가
+  {
+    date: "2026-07-15",
+    time: "13:00",
+    unavailableOptional: ["user-5", "user-6"] as const,
+  },
 ] as const;
 
-const MEETING_1_DISPLAY_SLOTS = [
-  { date: "2026-07-13", time: "10:30" },
-  { date: MEETING_1_FEATURED_SLOT.date, time: MEETING_1_FEATURED_SLOT.time },
-  { date: "2026-07-13", time: "11:00" },
-] as const;
+const MEETING_1_REQUIRED_IDS = ["user-2", "user-3", "user-4"] as const;
+const MEETING_1_OPTIONAL_IDS = ["user-5", "user-6"] as const;
+
+/** 표 색 다양화용 — 필수 불가/선택 전원 불가만 (1~3순위와 점수 경쟁하지 않음) */
+type Meeting1FillPattern =
+  | { tone: "red" }
+  | { tone: "white"; unavailableRequired: readonly string[] };
+
+const MEETING_1_FILL_PATTERNS: Meeting1FillPattern[] = [
+  { tone: "red" },
+  { tone: "white", unavailableRequired: ["user-2"] },
+  { tone: "white", unavailableRequired: ["user-3", "user-4"] },
+  { tone: "red" },
+  { tone: "white", unavailableRequired: ["user-2", "user-3"] },
+  { tone: "white", unavailableRequired: ["user-4"] },
+  { tone: "red" },
+  { tone: "white", unavailableRequired: ["user-2"] },
+];
 
 export function seedMeeting1RecommendationAvailability(
-  availability: AvailabilityEntry[],
+  _availability: AvailabilityEntry[],
   slots: TimeSlot[]
 ): AvailabilityEntry[] {
-  const merged = [...availability];
-
-  for (const seed of MEETING_1_PREFERRED_NOT_SEEDS) {
-    const slot = slots.find(
+  const findSlot = (date: string, time: string) =>
+    slots.find(
       (item) =>
-        item.date === seed.date &&
-        format(parseISO(item.start), "HH:mm") === seed.time
+        item.date === date && format(parseISO(item.start), "HH:mm") === time
     );
+
+  const rankSlotIds = new Set<string>();
+  const unavailableBySlot = new Map<string, ReadonlySet<string>>();
+
+  for (const seed of MEETING_1_RANK_SLOTS) {
+    const slot = findSlot(seed.date, seed.time);
     if (!slot) continue;
-
-    const entry = {
-      userId: seed.userId,
-      slotId: slot.id,
-      state: "preferred_not" as const,
-    };
-    const index = merged.findIndex(
-      (item) => item.slotId === slot.id && item.userId === seed.userId
-    );
-
-    if (index >= 0) merged[index] = entry;
-    else merged.push(entry);
+    rankSlotIds.add(slot.id);
+    unavailableBySlot.set(slot.id, new Set(seed.unavailableOptional));
   }
 
-  return merged;
+  const optionalParticipants = [
+    ...MEETING_1_OPTIONAL_IDS,
+    CURRENT_USER_ID,
+  ] as const;
+  const participants = [
+    ...MEETING_1_REQUIRED_IDS,
+    ...optionalParticipants,
+  ];
+
+  const nonRankSlots = slots.filter((slot) => !rankSlotIds.has(slot.id));
+  const patternBySlot = new Map<string, Meeting1FillPattern>();
+  nonRankSlots.forEach((slot, index) => {
+    patternBySlot.set(
+      slot.id,
+      MEETING_1_FILL_PATTERNS[index % MEETING_1_FILL_PATTERNS.length]
+    );
+  });
+
+  const result: AvailabilityEntry[] = [];
+  for (const slot of slots) {
+    const isRankSlot = rankSlotIds.has(slot.id);
+    const rankUnavailable = unavailableBySlot.get(slot.id);
+    const pattern = patternBySlot.get(slot.id);
+
+    for (const userId of participants) {
+      let state: AvailabilityEntry["state"] = "available";
+
+      if (isRankSlot) {
+        if (rankUnavailable?.has(userId)) state = "unavailable";
+      } else if (pattern) {
+        if (pattern.tone === "red") {
+          if (optionalParticipants.includes(userId as (typeof optionalParticipants)[number])) {
+            state = "unavailable";
+          }
+        } else if (pattern.tone === "white") {
+          if (pattern.unavailableRequired.includes(userId)) {
+            state = "unavailable";
+          }
+        }
+      }
+
+      result.push({ userId, slotId: slot.id, state });
+    }
+  }
+
+  return result;
 }
 
 export const MEETING_4_SCHEDULED_DATE = "2026-07-16";
@@ -211,20 +276,8 @@ function standardAttendees(
 }
 
 export function buildMeeting1Recommendations(meeting: Meeting): Recommendation[] {
-  const scored = scoreRecommendations(meeting);
-  const curated = MEETING_1_DISPLAY_SLOTS.map(({ date, time }) =>
-    scored.find(
-      (rec) =>
-        rec.slot.date === date &&
-        format(parseISO(rec.slot.start), "HH:mm") === time
-    )
-  ).filter((rec): rec is Recommendation => Boolean(rec));
-
-  if (curated.length < 3) {
-    return pickTopRecommendations(scored, 3);
-  }
-
-  return curated.map((rec, index) => ({ ...rec, rank: index + 1 }));
+  // 시드 가용성과 동일 기준으로 우선순위 산출 → 매칭 결과·후보 목록 일치
+  return pickTopRecommendations(scoreRecommendations(meeting), 3);
 }
 
 export function getDemoMeetings(locale: Locale): Meeting[] {
@@ -287,26 +340,7 @@ export function getDemoMeetings(locale: Locale): Meeting[] {
         "user-6": { isRequired: false, hasResponded: true },
       }),
       candidateSlots: [],
-      availability: [
-        { userId: "user-2", slotId: "slot-1", state: "available" },
-        { userId: "user-3", slotId: "slot-1", state: "available" },
-        { userId: "user-4", slotId: "slot-1", state: "preferred_not" },
-        { userId: "user-5", slotId: "slot-1", state: "available" },
-        { userId: "user-6", slotId: "slot-1", state: "available" },
-        { userId: CURRENT_USER_ID, slotId: "slot-1", state: "available" },
-        { userId: "user-2", slotId: "slot-2", state: "available" },
-        { userId: "user-3", slotId: "slot-2", state: "unavailable" },
-        { userId: "user-4", slotId: "slot-2", state: "available" },
-        { userId: "user-5", slotId: "slot-2", state: "preferred_not" },
-        { userId: "user-6", slotId: "slot-2", state: "available" },
-        { userId: CURRENT_USER_ID, slotId: "slot-2", state: "available" },
-        { userId: "user-2", slotId: "slot-3", state: "available" },
-        { userId: "user-3", slotId: "slot-3", state: "available" },
-        { userId: "user-4", slotId: "slot-3", state: "preferred_not" },
-        { userId: "user-5", slotId: "slot-3", state: "available" },
-        { userId: "user-6", slotId: "slot-3", state: "unavailable" },
-        { userId: CURRENT_USER_ID, slotId: "slot-3", state: "available" },
-      ],
+      availability: [],
       recommendations: [],
       manualCoordinationMode: false,
       createdAt: format(addDays(new Date(), -2), "yyyy-MM-dd'T'HH:mm:ss"),

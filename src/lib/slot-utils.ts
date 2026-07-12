@@ -2,26 +2,27 @@ import { addDays, addMinutes, setHours, setMinutes, format, parseISO } from "dat
 import type { AvailabilityEntry, TimeSlot } from "@/types";
 import { MEETING_1_FEATURED_SLOT } from "./demo-data";
 
-/** Weekday slot start times (hour, minute). Lunch 12:00–12:30 excluded. */
-const SLOT_START_TIMES: [number, number][] = [
-  [9, 0],
-  [9, 30],
-  [10, 0],
-  [10, 30],
-  [11, 0],
-  [11, 30],
-  [13, 0],
-  [13, 30],
-  [14, 0],
-  [14, 30],
-  [15, 0],
-  [15, 30],
-  [16, 0],
-  [16, 30],
-  [17, 0],
-];
-
+const WORK_DAY_START_MINUTES = 9 * 60;
+const LUNCH_START_MINUTES = 12 * 60;
+const LUNCH_END_MINUTES = 13 * 60;
 const WORK_DAY_END_MINUTES = 18 * 60;
+
+/** Slot starts step by meeting duration within morning / afternoon work blocks. */
+export function generateSlotStartMinutes(duration: number): number[] {
+  const step = Math.max(15, duration);
+  const starts: number[] = [];
+
+  const pushRange = (rangeStart: number, rangeEnd: number) => {
+    for (let m = rangeStart; m + duration <= rangeEnd; m += step) {
+      starts.push(m);
+    }
+  };
+
+  pushRange(WORK_DAY_START_MINUTES, LUNCH_START_MINUTES);
+  pushRange(LUNCH_END_MINUTES, WORK_DAY_END_MINUTES);
+
+  return starts;
+}
 
 export function generateCandidateSlots(
   startDate: string,
@@ -31,23 +32,23 @@ export function generateCandidateSlots(
   const slots: TimeSlot[] = [];
   const start = parseISO(startDate);
   const end = parseISO(endDate);
+  const startMinutes = generateSlotStartMinutes(duration);
 
   let current = start;
   while (current <= end) {
     const dayOfWeek = current.getDay();
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      for (const [hour, minute] of SLOT_START_TIMES) {
+      for (const minutes of startMinutes) {
+        const hour = Math.floor(minutes / 60);
+        const minute = minutes % 60;
         const slotStart = setMinutes(setHours(current, hour), minute);
         const slotEnd = addMinutes(slotStart, duration);
-        const slotEndMinutes = slotEnd.getHours() * 60 + slotEnd.getMinutes();
-        if (slotEndMinutes <= WORK_DAY_END_MINUTES) {
-          slots.push({
-            id: `slot-${format(slotStart, "yyyy-MM-dd-HH-mm")}`,
-            start: slotStart.toISOString(),
-            end: slotEnd.toISOString(),
-            date: format(slotStart, "yyyy-MM-dd"),
-          });
-        }
+        slots.push({
+          id: `slot-${format(slotStart, "yyyy-MM-dd-HH-mm")}`,
+          start: slotStart.toISOString(),
+          end: slotEnd.toISOString(),
+          date: format(slotStart, "yyyy-MM-dd"),
+        });
       }
     }
     current = addDays(current, 1);

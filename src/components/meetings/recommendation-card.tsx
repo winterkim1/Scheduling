@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  explainRecommendation,
   getRecommendationBadge,
   type SlotAttendeeGroups,
 } from "@/lib/matching-engine";
@@ -68,7 +67,6 @@ export function RecommendationCard({
 }: RecommendationCardProps) {
   const { t, formatDate, formatTime } = useI18n();
   const badge = getRecommendationBadge(recommendation, t);
-  const reasons = explainRecommendation(recommendation, t);
 
   return (
     <motion.div
@@ -77,20 +75,15 @@ export function RecommendationCard({
       transition={{ duration: 0.3, delay: recommendation.rank * 0.1 }}
     >
       <Card
-        className={cn(
-          "transition-all",
-          selected && "ring-2 ring-primary shadow-md",
-          expanded && "ring-2 ring-[#1A1A1A] shadow-md",
-          onToggleExpand && "hover:shadow-md cursor-pointer"
-        )}
+        className={cn(onToggleExpand && "hover:bg-muted/20 cursor-pointer")}
         onClick={onToggleExpand}
       >
         <CardContent className="p-5">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
-                {recommendation.rank}
-              </span>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
+              {recommendation.rank}
+            </span>
+            {badge && (
               <Badge
                 variant={
                   badge.variant === "success"
@@ -102,32 +95,42 @@ export function RecommendationCard({
               >
                 {badge.label}
               </Badge>
-            </div>
-            {selected && (
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary">
-                <Check className="h-4 w-4 text-primary-foreground" />
-              </div>
             )}
           </div>
 
-          <div className="space-y-2 mb-4">
-            <div className="flex items-center gap-2 text-lg font-semibold">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-sm sm:text-base">
+            <div className="flex items-center gap-2 font-semibold">
+              <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
               {formatDate(recommendation.slot.start)}
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              {formatTime(recommendation.slot.start)} – {formatTime(recommendation.slot.end)}
+              <Clock className="h-4 w-4 shrink-0" />
+              {formatTime(recommendation.slot.start)} –{" "}
+              {formatTime(recommendation.slot.end)}
             </div>
           </div>
 
-          <div className="space-y-2">
-            {reasons.map((reason, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm">
-                <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                <span>{reason}</span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <div className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-green-600 shrink-0" />
+              <span>
+                {t.recommendation.reasonRequired(
+                  recommendation.requiredAttendance,
+                  recommendation.requiredTotal
+                )}
+              </span>
+            </div>
+            {recommendation.optionalTotal > 0 && (
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-green-600 shrink-0" />
+                <span>
+                  {t.recommendation.reasonOptional(
+                    recommendation.optionalAttendance,
+                    recommendation.optionalTotal
+                  )}
+                </span>
               </div>
-            ))}
+            )}
           </div>
 
           {expanded && attendeeGroups && (
@@ -138,11 +141,16 @@ export function RecommendationCard({
             >
               <AttendeeGroupList
                 label={t.recommendation.slotAvailable}
-                people={attendeeGroups.available.map((person) => ({
+                people={[
+                  ...attendeeGroups.available,
+                  ...attendeeGroups.preferredNot,
+                ].map((person) => ({
                   userId: person.userId,
-                  label: person.isRequired
-                    ? `${person.name} (${t.participant.required})`
-                    : person.name,
+                  label: person.isOrganizer
+                    ? `${person.name} (${t.organizerDecision.host})`
+                    : person.isRequired
+                      ? `${person.name} (${t.participant.required})`
+                      : `${person.name} (${t.meetings.optionalAttendee})`,
                 }))}
                 tone="available"
               />
@@ -150,9 +158,11 @@ export function RecommendationCard({
                 label={t.recommendation.slotUnavailable}
                 people={attendeeGroups.unavailable.map((person) => ({
                   userId: person.userId,
-                  label: person.isRequired
-                    ? `${person.name} (${t.participant.required})`
-                    : person.name,
+                  label: person.isOrganizer
+                    ? `${person.name} (${t.organizerDecision.host})`
+                    : person.isRequired
+                      ? `${person.name} (${t.participant.required})`
+                      : `${person.name} (${t.meetings.optionalAttendee})`,
                 }))}
                 tone="unavailable"
               />

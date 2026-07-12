@@ -25,13 +25,34 @@ pause_on_error() {
 if [ ! -f "$SERVE_DIR/index.html" ]; then
   echo ""
   echo " 정적 파일이 없습니다."
-  echo " start.command 를 실행해 빌드를 완료해 주세요."
+  echo " start.command / open.command 를 실행해 빌드를 완료해 주세요."
   pause_on_error
   exit 1
 fi
 
+BUILD_STAMP="$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$SERVE_DIR/index.html" 2>/dev/null || date '+%Y-%m-%d %H:%M:%S')"
+# Cache-bust so the browser does not reuse an old tab document
+OPEN_URL="${URL}/?v=$(date +%s)"
+
 is_meetflow_up() {
   curl -fsS --connect-timeout 1 "$URL/" 2>/dev/null | grep -q "MeetFlow"
+}
+
+free_port() {
+  local pids
+  pids="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
+  if [ -n "$pids" ]; then
+    echo "  포트 $PORT 기존 프로세스 종료 중..."
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    sleep 0.4
+    pids="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
+    if [ -n "$pids" ]; then
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+      sleep 0.3
+    fi
+  fi
 }
 
 start_server() {
@@ -47,7 +68,7 @@ start_server() {
 
   echo ""
   echo " 서버를 시작할 수 없습니다."
-  echo " start.command 를 다시 실행해 주세요."
+  echo " open.command 를 다시 실행해 주세요."
   pause_on_error
   exit 1
 }
@@ -55,13 +76,10 @@ start_server() {
 echo ""
 echo " MeetFlow — 브라우저에서 열기"
 echo " ─────────────────────────"
+echo "  빌드 시각: $BUILD_STAMP"
 echo ""
 
-if is_meetflow_up; then
-  echo "  기존 서버를 재시작합니다..."
-  lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | xargs kill 2>/dev/null || true
-  sleep 0.5
-fi
+free_port
 
 if lsof -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   echo "  포트 $PORT 가 다른 프로그램에서 사용 중입니다."
@@ -76,7 +94,7 @@ start_server &
 SERVER_PID=$!
 
 READY=0
-for _ in $(seq 1 30); do
+for _ in $(seq 1 40); do
   if is_meetflow_up; then
     READY=1
     break
@@ -84,15 +102,16 @@ for _ in $(seq 1 30); do
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
     break
   fi
-  sleep 0.3
+  sleep 0.25
 done
 
 if [ "$READY" -eq 1 ]; then
   echo "  $URL"
+  echo "  (새 탭: $OPEN_URL)"
   echo ""
   echo "  종료: Ctrl+C"
   echo ""
-  open "$URL"
+  open "$OPEN_URL"
   wait "$SERVER_PID"
   exit 0
 fi

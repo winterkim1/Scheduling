@@ -129,14 +129,15 @@ export default function NotificationsPage() {
     toast.success(t.toast.preferredNotAccepted);
   };
 
-  const handlePreferredNotDecline = () => {
+  const handlePreferredNotDecline = (reason: string) => {
     if (!preferredNotPending) return;
     respondToPreferredNotConfirmation(
       preferredNotPending.meetingId,
       preferredNotPending.userId,
       false,
       preferredNotPending.slotDate,
-      preferredNotPending.slotTime
+      preferredNotPending.slotTime,
+      reason
     );
     handlePreferredNotOpenChange(false);
     toast.info(t.toast.preferredNotDeclined);

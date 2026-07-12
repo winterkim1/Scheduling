@@ -32,12 +32,13 @@ import {
   shouldShowResponseDeadline,
   userHasSubmittedAvailability,
 } from "@/lib/meeting-utils";
-import { getSlotAttendeeGroups } from "@/lib/matching-engine";
 import { getMeetingAvailabilityPath } from "@/lib/meeting-routes";
 import { staticHref, navigateTo } from "@/lib/navigation";
 import { useMeetingStoreHydrated } from "@/lib/use-store-hydration";
-import { RecommendationCard } from "@/components/meetings/recommendation-card";
+import { MatchingResultBoard } from "@/components/meetings/matching-result-board";
+import { MeetingCandidateList } from "@/components/meetings/meeting-candidate-list";
 import { ConfirmationDialog } from "@/components/meetings/confirmation-dialog";
+import { ConfirmationRequestModal } from "@/components/meetings/confirmation-request-modal";
 import { ChangeRequestModal } from "@/components/meetings/change-request-modal";
 import { MeetingMinutesSection } from "@/components/meetings/meeting-minutes-section";
 import { AvailabilityResubmitModal } from "@/components/meetings/availability-resubmit-modal";
@@ -51,6 +52,7 @@ import { formatUserAffiliation } from "@/lib/user-utils";
 import { getParticipantCount } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
+import type { Recommendation } from "@/types";
 
 interface MeetingDetailViewProps {
   id: string;
@@ -59,7 +61,7 @@ interface MeetingDetailViewProps {
 export function MeetingDetailView({ id }: MeetingDetailViewProps) {
   const hydrated = useMeetingStoreHydrated();
   const meeting = useMeetingStore((s) => s.getMeeting(id));
-  const selectRecommendation = useMeetingStore((s) => s.selectRecommendation);
+  const confirmMeetingSlot = useMeetingStore((s) => s.confirmMeetingSlot);
   const handleChangeRequest = useMeetingStore((s) => s.handleChangeRequest);
   const requestChange = useMeetingStore((s) => s.requestChange);
   const cancelChangeRequest = useMeetingStore((s) => s.cancelChangeRequest);
@@ -67,17 +69,22 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
     (s) => s.setPendingAvailabilityResubmit
   );
   const runMatching = useMeetingStore((s) => s.runMatching);
+  const sendConfirmationRequestToUser = useMeetingStore(
+    (s) => s.sendConfirmationRequestToUser
+  );
   const viewingAsUserId = useMeetingStore((s) => s.viewingAsUserId);
   const { locale, t, formatDate, formatTime, formatDuration, formatScheduledDateRange } =
     useI18n();
 
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [expandedRecommendationIndex, setExpandedRecommendationIndex] = useState<
-    number | null
-  >(null);
+  const [pendingRecommendation, setPendingRecommendation] =
+    useState<Recommendation | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [changeOpen, setChangeOpen] = useState(false);
   const [resubmitOpen, setResubmitOpen] = useState(false);
+  const [confirmationTarget, setConfirmationTarget] = useState<{
+    userId: string;
+    name: string;
+  } | null>(null);
 
   if (!hydrated) {
     return (
@@ -96,23 +103,17 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
     );
   }
 
-  const handleSelectRecommendation = (index: number) => {
-    setSelectedIndex(index);
+  const handleSelectCandidate = (recommendation: Recommendation) => {
+    setPendingRecommendation(recommendation);
     setConfirmOpen(true);
   };
 
-  const handleToggleRecommendation = (index: number) => {
-    setExpandedRecommendationIndex((prev) => (prev === index ? null : index));
-  };
-
-  const getAttendeeName = (userId: string) =>
-    getUserById(userId, locale)?.name ?? t.common.unknown;
-
   const handleConfirm = () => {
-    if (selectedIndex === null) return;
-    selectRecommendation(id, selectedIndex);
+    if (!pendingRecommendation) return;
+    confirmMeetingSlot(id, pendingRecommendation.slot.id);
     toast.success(t.toast.meetingConfirmed);
     setConfirmOpen(false);
+    setPendingRecommendation(null);
   };
 
   const timeSlot = meeting.confirmedSlot;
@@ -158,6 +159,12 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
     id !== "meeting-1";
   const responseStats = getResponseStats(meeting);
   const attendanceStats = getAttendanceStats(meeting);
+  const isOrganizerView = viewingAsUserId === meeting.organizerId;
+  const canSendIndividualConfirmation =
+    isOrganizerView &&
+    !scheduleConfirmed &&
+    !isPastMeeting(meeting) &&
+    (meeting.recommendations.length > 0 || meeting.candidateSlots.length > 0);
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -225,19 +232,19 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <Clock className="h-5 w-5 text-muted-foreground shrink-0" />
+              <Calendar className="h-5 w-5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{t.meetings.meetingTime}</p>
-                <p className="font-medium truncate">{meetingTimeLabel}</p>
+                <p className="text-xs text-muted-foreground">{dateLabel}</p>
+                <p className="font-medium truncate">{dateValueLabel}</p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-muted-foreground shrink-0" />
+              <Clock className="h-5 w-5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{dateLabel}</p>
-                <p className="font-medium truncate">{dateValueLabel}</p>
+                <p className="text-xs text-muted-foreground">{t.meetings.meetingTime}</p>
+                <p className="font-medium truncate">{meetingTimeLabel}</p>
               </div>
             </CardContent>
           </Card>
@@ -267,24 +274,6 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
             </CardContent>
           </Card>
         </div>
-
-        {meeting.confirmedSlot && !isPastMeeting(meeting) && (
-          <Card className="mb-6 border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10">
-            <CardContent className="p-5">
-              <p className="text-sm font-medium text-green-800 dark:text-green-400 mb-1">
-                {t.meetings.confirmedTime}
-              </p>
-              <p className="text-lg font-semibold">
-                {formatDate(meeting.confirmedSlot.start)}{" "}
-                {formatTime(meeting.confirmedSlot.start)}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {isConfirmed && !isPastMeeting(meeting) && (
-          <MeetingMinutesSection meetingId={meeting.id} />
-        )}
 
         <Card className="mb-6">
           <CardHeader>
@@ -340,13 +329,27 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
                       ? getAttendeeParticipationStatus(meeting, att)
                       : undefined
                   }
+                  onClick={
+                    canSendIndividualConfirmation
+                      ? () =>
+                          setConfirmationTarget({
+                            userId: att.userId,
+                            name: user.name,
+                          })
+                      : undefined
+                  }
+                  clickHint={
+                    canSendIndividualConfirmation
+                      ? t.confirmationRequestModal.clickHint
+                      : undefined
+                  }
                 />
               );
             })}
           </CardContent>
         </Card>
 
-        {isPastMeeting(meeting) && (
+        {(isConfirmed || isPastMeeting(meeting)) && (
           <MeetingMinutesSection meetingId={meeting.id} />
         )}
 
@@ -405,29 +408,19 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
             </Card>
           )}
 
-        {meeting.status === "recommendation" && meeting.recommendations.length > 0 && (
-          <section className="mb-6">
-            <h2 className="text-lg font-semibold mb-4">
-              {t.meetings.meetingTimeCandidates}
-            </h2>
-            <div className="grid md:grid-cols-3 gap-4">
-              {meeting.recommendations.map((rec, i) => (
-                <RecommendationCard
-                  key={rec.slot.id}
-                  recommendation={rec}
-                  expanded={expandedRecommendationIndex === i}
-                  attendeeGroups={getSlotAttendeeGroups(
-                    meeting,
-                    rec.slot.id,
-                    getAttendeeName
-                  )}
-                  onToggleExpand={() => handleToggleRecommendation(i)}
-                  onSelect={() => handleSelectRecommendation(i)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+        {meeting.status === "recommendation" &&
+          meeting.recommendations.length > 0 && (
+            <>
+              <MatchingResultBoard
+                meeting={meeting}
+                viewingAsUserId={viewingAsUserId}
+              />
+              <MeetingCandidateList
+                meeting={meeting}
+                onSelect={handleSelectCandidate}
+              />
+            </>
+          )}
 
         {meeting.status === "change_requested" && (
           <Card className="mb-6 border-destructive/50">
@@ -502,20 +495,40 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
 
       <ConfirmationDialog
         open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        slot={
-          selectedIndex !== null
-            ? meeting.recommendations[selectedIndex]?.slot
-            : undefined
-        }
+        onOpenChange={(open) => {
+          setConfirmOpen(open);
+          if (!open) setPendingRecommendation(null);
+        }}
+        slot={pendingRecommendation?.slot}
         meetingTitle={meeting.title}
-        preferredNotCount={
-          selectedIndex !== null
-            ? meeting.recommendations[selectedIndex]?.preferredNotCount ?? 0
-            : 0
-        }
+        preferredNotCount={pendingRecommendation?.preferredNotCount ?? 0}
         onConfirm={handleConfirm}
       />
+
+      {confirmationTarget && (
+        <ConfirmationRequestModal
+          open={Boolean(confirmationTarget)}
+          onOpenChange={(open) => {
+            if (!open) setConfirmationTarget(null);
+          }}
+          meeting={meeting}
+          attendeeName={confirmationTarget.name}
+          defaultRecommendationIndex={
+            meeting.selectedRecommendationIndex ?? 0
+          }
+          onSubmit={({ slotStart, message, recommendationIndex }) => {
+            sendConfirmationRequestToUser(id, confirmationTarget.userId, {
+              slotStart,
+              message,
+              recommendationIndex,
+            });
+            toast.success(
+              t.toast.confirmRequestSentTo(confirmationTarget.name)
+            );
+            setConfirmationTarget(null);
+          }}
+        />
+      )}
 
       <ChangeRequestModal
         open={changeOpen}

@@ -5,11 +5,13 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AvailabilityGrid } from "@/components/meetings/availability-grid";
+import { PreferredTimeBandSelector } from "@/components/meetings/preferred-time-band-selector";
 import { useMeetingStore } from "@/store/meeting-store";
 import { getMeetingDetailPath } from "@/lib/meeting-routes";
 import { navigateTo, staticHref } from "@/lib/navigation";
 import { useMeetingStoreHydrated } from "@/lib/use-store-hydration";
 import { userHasSubmittedAvailability } from "@/lib/meeting-utils";
+import { getUserPreferredTimeBands } from "@/lib/preferred-time-band";
 import {
   loadPendingAvailabilityResubmit,
 } from "@/lib/pending-availability-resubmit";
@@ -29,6 +31,7 @@ export function MeetingAvailabilityView({ id }: MeetingAvailabilityViewProps) {
   );
   const setAvailability = useMeetingStore((s) => s.setAvailability);
   const setDayLeavePreset = useMeetingStore((s) => s.setDayLeavePreset);
+  const setPreferredTimeBands = useMeetingStore((s) => s.setPreferredTimeBands);
   const submitAvailability = useMeetingStore((s) => s.submitAvailability);
   const resubmitAvailability = useMeetingStore((s) => s.resubmitAvailability);
   const clearPendingAvailabilityResubmit = useMeetingStore(
@@ -111,7 +114,7 @@ export function MeetingAvailabilityView({ id }: MeetingAvailabilityViewProps) {
         <CardHeader>
           <CardTitle className="text-base">{meeting.title}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <AvailabilityGrid
             slots={meeting.candidateSlots}
             availability={meeting.availability}
@@ -122,6 +125,15 @@ export function MeetingAvailabilityView({ id }: MeetingAvailabilityViewProps) {
             }
             onDayLeaveChange={(date, preset) =>
               setDayLeavePreset(id, viewingAsUserId, date, preset)
+            }
+          />
+          <PreferredTimeBandSelector
+            value={getUserPreferredTimeBands(
+              meeting.preferredTimeBandsByUser,
+              viewingAsUserId
+            )}
+            onChange={(bands) =>
+              setPreferredTimeBands(id, viewingAsUserId, bands)
             }
           />
         </CardContent>

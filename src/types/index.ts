@@ -21,6 +21,9 @@ export type DayLeavePreset =
   | "morning_half"
   | "afternoon_half";
 
+/** Soft preference for matching tie-breaks; empty / unset is allowed. */
+export type PreferredTimeBand = "morning" | "afternoon" | "evening";
+
 export type OrganizerAvailabilityResponse = "no_response" | "responded";
 
 export type AttendeeParticipationStatus =
@@ -115,6 +118,8 @@ export interface Meeting {
   candidateSlots: TimeSlot[];
   availability: AvailabilityEntry[];
   dayLeavePresetsByUser?: Record<string, Record<string, DayLeavePreset>>;
+  /** Per-user preferred time bands (optional). Empty array / missing = unset. */
+  preferredTimeBandsByUser?: Record<string, PreferredTimeBand[]>;
   recommendations: Recommendation[];
   selectedRecommendationIndex?: number;
   confirmedSlot?: TimeSlot;
