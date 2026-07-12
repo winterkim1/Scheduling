@@ -34,6 +34,9 @@ import {
 } from "@/lib/meeting-utils";
 import { cn } from "@/lib/utils";
 
+const MEETING_TABS = ["active", "confirmed", "past", "drafts"] as const;
+type MeetingTab = (typeof MEETING_TABS)[number];
+
 function createDefaultPastRange(): DateRange {
   const weekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), -14);
   return {
@@ -42,9 +45,18 @@ function createDefaultPastRange(): DateRange {
   };
 }
 
+function getInitialTab(): MeetingTab {
+  if (typeof window === "undefined") return "active";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return MEETING_TABS.includes(tab as MeetingTab)
+    ? (tab as MeetingTab)
+    : "active";
+}
+
 export default function MeetingsPage() {
   const meetings = useMeetingStore(useShallow((s) => s.getOrganizerMeetings()));
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<MeetingTab>(getInitialTab);
   const [period, setPeriod] = useState<DateRange>(() => createDefaultPastRange());
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const { locale, t } = useI18n();
@@ -115,7 +127,10 @@ export default function MeetingsPage() {
         />
       </div>
 
-      <Tabs defaultValue="active">
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as MeetingTab)}
+      >
         <TabsList className="mb-4 w-full flex flex-wrap h-auto gap-1">
           <TabsTrigger value="active" className="flex-1 min-w-[72px]">
             {t.meetings.active} ({active.length})
@@ -123,11 +138,11 @@ export default function MeetingsPage() {
           <TabsTrigger value="confirmed" className="flex-1 min-w-[72px]">
             {t.meetings.confirmed} ({confirmed.length})
           </TabsTrigger>
-          <TabsTrigger value="drafts" className="flex-1 min-w-[72px]">
-            {t.meetings.drafts} ({drafts.length})
-          </TabsTrigger>
           <TabsTrigger value="past" className="flex-1 min-w-[72px]">
             {t.meetings.past} ({pastDisplayed.length})
+          </TabsTrigger>
+          <TabsTrigger value="drafts" className="flex-1 min-w-[72px]">
+            {t.meetings.drafts} ({drafts.length})
           </TabsTrigger>
         </TabsList>
 
@@ -149,16 +164,6 @@ export default function MeetingsPage() {
           ) : (
             <p className="text-center text-muted-foreground py-12">
               {t.meetings.noConfirmed}
-            </p>
-          )}
-        </TabsContent>
-
-        <TabsContent value="drafts" className="space-y-3">
-          {drafts.length > 0 ? (
-            drafts.map((m) => <MeetingCard key={m.id} meeting={m} />)
-          ) : (
-            <p className="text-center text-muted-foreground py-12">
-              {t.meetings.noDrafts}
             </p>
           )}
         </TabsContent>
@@ -219,6 +224,16 @@ export default function MeetingsPage() {
           ) : (
             <p className="text-center text-muted-foreground py-12">
               {t.meetings.noPastInWeek}
+            </p>
+          )}
+        </TabsContent>
+
+        <TabsContent value="drafts" className="space-y-3">
+          {drafts.length > 0 ? (
+            drafts.map((m) => <MeetingCard key={m.id} meeting={m} />)
+          ) : (
+            <p className="text-center text-muted-foreground py-12">
+              {t.meetings.noDrafts}
             </p>
           )}
         </TabsContent>

@@ -1,7 +1,7 @@
 import type { ChangeReasonKey, PriorityKey, StatusKey } from "./types";
 
 const status: Record<StatusKey, string> & { attended: string } = {
-  draft: "Create meeting",
+  draft: "Saved draft",
   invitation_sent: "Invite attendees",
   availability_collection: "Collect availability",
   matching: "Matching",
@@ -110,11 +110,11 @@ export const en = {
     search: "Search meetings...",
     active: "Scheduling",
     confirmed: "Confirmed",
-    drafts: "Proposals",
+    drafts: "Saved drafts",
     past: "Past meetings",
     noActive: "No meetings in scheduling",
     noConfirmed: "No confirmed meetings",
-    noDrafts: "No proposals",
+    noDrafts: "No saved drafts",
     noPast: "No past meetings",
     noPastInWeek: "No past meetings in this week",
     noPastOnDate: "No past meetings on this date",
@@ -221,11 +221,13 @@ export const en = {
     removeAttendee: "Remove attendee",
     submitCreate: "Create",
     submitInvite: "Create & Invite",
+    saveDraft: "Save draft",
     errorTitle: "Please enter a meeting title",
     errorAttendeeRole: "Assign required or optional to every attendee",
     errorAttendees: "Please select at least one required attendee",
     successCreate: "Meeting created",
     successInvite: "Meeting created and invitations sent",
+    successDraft: "Draft saved",
   },
   meetingRecord: {
     title: "Record meeting notes",

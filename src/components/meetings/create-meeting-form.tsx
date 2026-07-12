@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import {
+  forwardRef,
+  useImperativeHandle,
+  useState,
+} from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,225 +54,255 @@ function resolveDurationMinutes(
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-export function CreateMeetingForm() {
-  const createMeeting = useMeetingStore((s) => s.createMeeting);
-  const sendInvitations = useMeetingStore((s) => s.sendInvitations);
-  const { locale, t, formatDuration } = useI18n();
+export type CreateMeetingFormHandle = {
+  saveDraft: () => void;
+};
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
-  const [durationSelect, setDurationSelect] = useState("60");
-  const [customDuration, setCustomDuration] = useState("");
-  const [priority, setPriority] = useState<MeetingPriority>("none");
-  const [dateStart, setDateStart] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [dateEnd, setDateEnd] = useState(format(addDays(new Date(), 7), "yyyy-MM-dd"));
-  const [deadline, setDeadline] = useState(() =>
-    responseDeadlineFromEnd(format(addDays(new Date(), 7), "yyyy-MM-dd"))
-  );
-  const [attendeeDrafts, setAttendeeDrafts] = useState<AttendeeDraft[]>([]);
+export const CreateMeetingForm = forwardRef<CreateMeetingFormHandle>(
+  function CreateMeetingForm(_props, ref) {
+    const createMeeting = useMeetingStore((s) => s.createMeeting);
+    const sendInvitations = useMeetingStore((s) => s.sendInvitations);
+    const { locale, t, formatDuration } = useI18n();
 
-  const hasAttendees = attendeeDrafts.length > 0;
+    const [title, setTitle] = useState("");
+    const [description, setDescription] = useState("");
+    const [location, setLocation] = useState("");
+    const [durationSelect, setDurationSelect] = useState("60");
+    const [customDuration, setCustomDuration] = useState("");
+    const [priority, setPriority] = useState<MeetingPriority>("none");
+    const [dateStart, setDateStart] = useState(format(new Date(), "yyyy-MM-dd"));
+    const [dateEnd, setDateEnd] = useState(
+      format(addDays(new Date(), 7), "yyyy-MM-dd")
+    );
+    const [deadline, setDeadline] = useState(() =>
+      responseDeadlineFromEnd(format(addDays(new Date(), 7), "yyyy-MM-dd"))
+    );
+    const [attendeeDrafts, setAttendeeDrafts] = useState<AttendeeDraft[]>([]);
 
-  const handleSubmit = () => {
-    if (!title.trim()) {
-      toast.error(t.createForm.errorTitle);
-      return;
-    }
+    const hasAttendees = attendeeDrafts.length > 0;
 
-    const durationMinutes = resolveDurationMinutes(durationSelect, customDuration);
-    if (durationMinutes === null) {
-      toast.error(t.createForm.errorDuration);
-      return;
-    }
-
-    if (hasAttendees) {
-      if (hasUnassignedAttendeeRoles(attendeeDrafts)) {
-        toast.error(t.createForm.errorAttendeeRole);
-        return;
+    const buildMeeting = (mode: "submit" | "draft") => {
+      if (!title.trim()) {
+        toast.error(t.createForm.errorTitle);
+        return null;
       }
 
-      const { requiredAttendeeIds } = draftsToAttendeeIds(attendeeDrafts);
-      if (requiredAttendeeIds.length === 0) {
-        toast.error(t.createForm.errorAttendees);
-        return;
+      const durationMinutes = resolveDurationMinutes(
+        durationSelect,
+        customDuration
+      );
+      if (durationMinutes === null) {
+        toast.error(t.createForm.errorDuration);
+        return null;
       }
-    }
 
-    const { requiredAttendeeIds, optionalAttendeeIds } =
-      draftsToAttendeeIds(attendeeDrafts);
+      if (hasAttendees) {
+        if (hasUnassignedAttendeeRoles(attendeeDrafts)) {
+          toast.error(t.createForm.errorAttendeeRole);
+          return null;
+        }
 
-    const meeting = createMeeting({
-      title,
-      description,
-      location,
-      duration: durationMinutes,
-      candidateDateRange: { start: dateStart, end: dateEnd },
-      responseDeadline: deadline,
-      priority,
-      requiredAttendeeIds,
-      optionalAttendeeIds,
-    });
+        if (mode === "submit") {
+          const { requiredAttendeeIds } = draftsToAttendeeIds(attendeeDrafts);
+          if (requiredAttendeeIds.length === 0) {
+            toast.error(t.createForm.errorAttendees);
+            return null;
+          }
+        }
+      }
 
-    if (hasAttendees) {
-      sendInvitations(meeting.id);
-      toast.success(t.createForm.successInvite);
-    } else {
-      toast.success(t.createForm.successCreate);
-    }
+      const { requiredAttendeeIds, optionalAttendeeIds } =
+        draftsToAttendeeIds(attendeeDrafts);
 
-    navigateTo(getMeetingDetailPath(meeting.id));
-  };
+      return createMeeting({
+        title,
+        description,
+        location,
+        duration: durationMinutes,
+        candidateDateRange: { start: dateStart, end: dateEnd },
+        responseDeadline: deadline,
+        priority,
+        requiredAttendeeIds,
+        optionalAttendeeIds,
+      });
+    };
 
-  return (
-    <motion.div
-      initial={false}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-2xl mx-auto space-y-6"
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.createForm.details}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 min-w-0 overflow-hidden">
-          <div className="space-y-2">
-            <Label htmlFor="title">{t.createForm.title}</Label>
-            <Input
-              id="title"
-              placeholder={t.createForm.titlePlaceholder}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
+    const handleSubmit = () => {
+      const meeting = buildMeeting("submit");
+      if (!meeting) return;
 
-          <div className="space-y-2">
-            <Label htmlFor="description">{t.createForm.description}</Label>
-            <Textarea
-              id="description"
-              placeholder={t.createForm.descriptionPlaceholder}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
+      if (hasAttendees) {
+        sendInvitations(meeting.id);
+        toast.success(t.createForm.successInvite);
+      } else {
+        toast.success(t.createForm.successCreate);
+      }
 
-          <div className="space-y-2">
-            <Label htmlFor="location">{t.createForm.location}</Label>
-            <Input
-              id="location"
-              placeholder={t.createForm.locationPlaceholder}
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </div>
+      navigateTo(getMeetingDetailPath(meeting.id));
+    };
 
-          <div className="grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2">
-            <div className="space-y-2 min-w-0">
-              <Label htmlFor="duration">{t.createForm.durationMinutes}</Label>
-              <Select value={durationSelect} onValueChange={setDurationSelect}>
-                <SelectTrigger id="duration">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DURATION_OPTIONS.map((mins) => (
-                    <SelectItem key={mins} value={String(mins)}>
-                      {formatDuration(mins)}
+    const handleSaveDraft = () => {
+      const meeting = buildMeeting("draft");
+      if (!meeting) return;
+
+      toast.success(t.createForm.successDraft);
+      navigateTo("/meetings/?tab=drafts");
+    };
+
+    useImperativeHandle(ref, () => ({
+      saveDraft: handleSaveDraft,
+    }));
+
+    return (
+      <motion.div
+        initial={false}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-2xl mx-auto space-y-6"
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.createForm.details}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 min-w-0 overflow-hidden">
+            <div className="space-y-2">
+              <Label htmlFor="title">{t.createForm.title}</Label>
+              <Input
+                id="title"
+                placeholder={t.createForm.titlePlaceholder}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">{t.createForm.description}</Label>
+              <Textarea
+                id="description"
+                placeholder={t.createForm.descriptionPlaceholder}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">{t.createForm.location}</Label>
+              <Input
+                id="location"
+                placeholder={t.createForm.locationPlaceholder}
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2">
+              <div className="space-y-2 min-w-0">
+                <Label htmlFor="duration">{t.createForm.durationMinutes}</Label>
+                <Select value={durationSelect} onValueChange={setDurationSelect}>
+                  <SelectTrigger id="duration">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DURATION_OPTIONS.map((mins) => (
+                      <SelectItem key={mins} value={String(mins)}>
+                        {formatDuration(mins)}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={DURATION_CUSTOM}>
+                      {t.createForm.durationCustom}
                     </SelectItem>
-                  ))}
-                  <SelectItem value={DURATION_CUSTOM}>
-                    {t.createForm.durationCustom}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {durationSelect === DURATION_CUSTOM && (
+                  </SelectContent>
+                </Select>
+                {durationSelect === DURATION_CUSTOM && (
+                  <Input
+                    id="duration-custom"
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    placeholder="60"
+                    value={customDuration}
+                    onChange={(e) => setCustomDuration(e.target.value)}
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2 min-w-0">
+                <Label htmlFor="priority">{t.createForm.priority}</Label>
+                <Select
+                  value={priority}
+                  onValueChange={(v) => setPriority(v as MeetingPriority)}
+                >
+                  <SelectTrigger id="priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {t.priority[p]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-2 min-w-0">
+                <Label htmlFor="dateStart" className="block leading-snug">
+                  {t.createForm.dateStart}
+                </Label>
                 <Input
-                  id="duration-custom"
-                  type="number"
-                  min={1}
-                  step={1}
-                  inputMode="numeric"
-                  placeholder="60"
-                  value={customDuration}
-                  onChange={(e) => setCustomDuration(e.target.value)}
+                  id="dateStart"
+                  type="date"
+                  className="w-full"
+                  value={dateStart}
+                  onChange={(e) => setDateStart(e.target.value)}
                 />
-              )}
+              </div>
+              <div className="space-y-2 min-w-0">
+                <Label htmlFor="dateEnd" className="block leading-snug">
+                  {t.createForm.dateEnd}
+                </Label>
+                <Input
+                  id="dateEnd"
+                  type="date"
+                  className="w-full"
+                  value={dateEnd}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDateEnd(value);
+                    setDeadline(responseDeadlineFromEnd(value));
+                  }}
+                />
+              </div>
+              <div className="space-y-2 min-w-0 sm:col-span-2 lg:col-span-1">
+                <Label htmlFor="deadline" className="block leading-snug">
+                  {t.createForm.deadline}
+                </Label>
+                <Input
+                  id="deadline"
+                  type="date"
+                  className="w-full"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                />
+              </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="space-y-2 min-w-0">
-              <Label htmlFor="priority">{t.createForm.priority}</Label>
-              <Select
-                value={priority}
-                onValueChange={(v) => setPriority(v as MeetingPriority)}
-              >
-                <SelectTrigger id="priority">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {t.priority[p]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+        <AttendeePicker
+          drafts={attendeeDrafts}
+          onChange={setAttendeeDrafts}
+          locale={locale}
+        />
 
-          <div className="grid grid-cols-1 gap-4 min-w-0 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-2 min-w-0">
-              <Label htmlFor="dateStart" className="block leading-snug">
-                {t.createForm.dateStart}
-              </Label>
-              <Input
-                id="dateStart"
-                type="date"
-                className="w-full"
-                value={dateStart}
-                onChange={(e) => setDateStart(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2 min-w-0">
-              <Label htmlFor="dateEnd" className="block leading-snug">
-                {t.createForm.dateEnd}
-              </Label>
-              <Input
-                id="dateEnd"
-                type="date"
-                className="w-full"
-                value={dateEnd}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setDateEnd(value);
-                  setDeadline(responseDeadlineFromEnd(value));
-                }}
-              />
-            </div>
-            <div className="space-y-2 min-w-0 sm:col-span-2 lg:col-span-1">
-              <Label htmlFor="deadline" className="block leading-snug">
-                {t.createForm.deadline}
-              </Label>
-              <Input
-                id="deadline"
-                type="date"
-                className="w-full"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <AttendeePicker
-        drafts={attendeeDrafts}
-        onChange={setAttendeeDrafts}
-        locale={locale}
-      />
-
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-4 z-10">
-        <Button className="w-full h-12 text-base" size="lg" onClick={handleSubmit}>
-          {hasAttendees ? t.createForm.submitInvite : t.createForm.submitCreate}
-        </Button>
-      </div>
-    </motion.div>
-  );
-}
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-4 z-10">
+          <Button className="w-full h-12 text-base" size="lg" onClick={handleSubmit}>
+            {hasAttendees ? t.createForm.submitInvite : t.createForm.submitCreate}
+          </Button>
+        </div>
+      </motion.div>
+    );
+  }
+);

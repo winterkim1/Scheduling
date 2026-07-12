@@ -1,7 +1,7 @@
 import type { ChangeReasonKey, PriorityKey, StatusKey } from "./types";
 
 const status: Record<StatusKey, string> & { attended: string } = {
-  draft: "회의 생성",
+  draft: "임시저장",
   invitation_sent: "인원 초대",
   availability_collection: "가능 시간 수집",
   matching: "매칭",
@@ -110,11 +110,11 @@ export const ko = {
     search: "회의 검색...",
     active: "일정 조율",
     confirmed: "확정",
-    drafts: "회의 가안",
+    drafts: "임시저장",
     past: "지난 회의",
     noActive: "일정 조율 중인 회의가 없습니다",
     noConfirmed: "확정된 회의가 없습니다",
-    noDrafts: "회의 가안이 없습니다",
+    noDrafts: "임시저장된 회의가 없습니다",
     noPast: "지난 회의가 없습니다",
     noPastInWeek: "해당 주에 지난 회의가 없습니다",
     noPastOnDate: "해당 날짜에 지난 회의가 없습니다",
@@ -220,11 +220,13 @@ export const ko = {
     removeAttendee: "대상자 제외",
     submitCreate: "생성",
     submitInvite: "생성 및 초대",
+    saveDraft: "임시저장",
     errorTitle: "회의 제목을 입력해 주세요",
     errorAttendeeRole: "모든 대상자에게 필수 또는 선택을 지정해 주세요",
     errorAttendees: "필수 대상자를 한 명 이상 선택해 주세요",
     successCreate: "회의가 생성되었습니다",
     successInvite: "회의가 생성되었고 초대가 발송되었습니다",
+    successDraft: "임시저장되었습니다",
   },
   meetingRecord: {
     title: "회의 내용 기록",

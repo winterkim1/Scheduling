@@ -7,7 +7,6 @@ import {
   Bell,
   Users,
   LayoutDashboard,
-  Menu,
   Plus,
   CalendarClock,
   X,
@@ -17,6 +16,25 @@ import { useMeetingStore } from "@/store/meeting-store";
 import { useI18n } from "@/lib/i18n";
 import { staticHref } from "@/lib/navigation";
 import { getAppNavItems, isAppNavActive } from "@/lib/app-nav";
+
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <line x1="4" y1="5" x2="20" y2="5" />
+      <line x1="4" y1="9.5" x2="20" y2="9.5" />
+      <line x1="4" y1="14.5" x2="20" y2="14.5" />
+      <line x1="4" y1="19" x2="20" y2="19" />
+    </svg>
+  );
+}
 
 export function MobileNav() {
   const pathname = usePathname();
@@ -91,7 +109,7 @@ export function MobileNav() {
             aria-label={t.nav.menu}
             aria-expanded={menuOpen}
           >
-            <Menu className="h-5 w-5" />
+            <MenuIcon className="h-5 w-5" />
             <span className="text-[10px] font-medium truncate max-w-full">
               {t.nav.menu}
             </span>
