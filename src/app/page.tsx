@@ -145,10 +145,15 @@ export default function DashboardPage() {
       )}
 
       <AppLink
-        href="/meetings/new"
+        href="/meetings/record"
         className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40"
+        aria-label={t.nav.recordMeeting}
       >
-        <Button size="icon" className="h-14 w-14 rounded-full shadow-lg">
+        <Button
+          size="icon"
+          className="h-14 w-14 rounded-full shadow-lg"
+          aria-label={t.nav.recordMeeting}
+        >
           <Plus className="h-6 w-6" />
         </Button>
       </AppLink>
