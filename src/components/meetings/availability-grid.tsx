@@ -68,36 +68,52 @@ function useAvailabilityPaint(
   const paintedRef = useRef(new Set<string>());
   const didDragRef = useRef(false);
   const pointerDownSlotRef = useRef<string | null>(null);
+  const pointerIdRef = useRef<number | null>(null);
+  const availabilityRef = useRef(availability);
+  const userIdRef = useRef(userId);
+  const onChangeRef = useRef(onChange);
+
+  availabilityRef.current = availability;
+  userIdRef.current = userId;
+  onChangeRef.current = onChange;
 
   const getSlotIdFromPoint = (clientX: number, clientY: number) => {
     const element = document.elementFromPoint(clientX, clientY);
     return element?.closest<HTMLElement>("[data-slot-id]")?.dataset.slotId ?? null;
   };
 
-  const applyPaint = useCallback(
-    (slotId: string) => {
-      if (!isPaintingRef.current || paintStateRef.current === null) return;
+  const applyPaint = useCallback((slotId: string) => {
+    if (!isPaintingRef.current || paintStateRef.current === null) return;
 
-      if (slotId !== pointerDownSlotRef.current) {
+    const paintOne = (id: string) => {
+      if (paintedRef.current.has(id)) return;
+      paintedRef.current.add(id);
+      const current = getAvailabilityForUser(
+        availabilityRef.current,
+        userIdRef.current,
+        id
+      );
+      if (current !== paintStateRef.current) {
+        onChangeRef.current(id, paintStateRef.current!);
+      }
+    };
+
+    if (slotId !== pointerDownSlotRef.current) {
+      if (!didDragRef.current && pointerDownSlotRef.current) {
+        didDragRef.current = true;
+        paintOne(pointerDownSlotRef.current);
+      } else {
         didDragRef.current = true;
       }
+    }
 
-      if (paintedRef.current.has(slotId)) return;
-
-      paintedRef.current.add(slotId);
-      const current = getAvailabilityForUser(availability, userId, slotId);
-      if (current !== paintStateRef.current) {
-        onChange(slotId, paintStateRef.current);
-      }
-    },
-    [availability, userId, onChange]
-  );
+    paintOne(slotId);
+  }, []);
 
   const endPaint = useCallback(() => {
     const slotId = pointerDownSlotRef.current;
-    if (isPaintingRef.current && !didDragRef.current && slotId) {
-      const current = getAvailabilityForUser(availability, userId, slotId);
-      onChange(slotId, cycleAvailabilityState(current));
+    if (isPaintingRef.current && !didDragRef.current && slotId && paintStateRef.current) {
+      onChangeRef.current(slotId, paintStateRef.current);
     }
 
     isPaintingRef.current = false;
@@ -105,53 +121,82 @@ function useAvailabilityPaint(
     paintedRef.current.clear();
     didDragRef.current = false;
     pointerDownSlotRef.current = null;
-  }, [availability, userId, onChange]);
+    pointerIdRef.current = null;
+    document.body.style.touchAction = "";
+  }, []);
 
   useEffect(() => {
-    window.addEventListener("pointerup", endPaint);
-    window.addEventListener("pointercancel", endPaint);
-    return () => {
-      window.removeEventListener("pointerup", endPaint);
-      window.removeEventListener("pointercancel", endPaint);
+    const onPointerMove = (event: PointerEvent) => {
+      if (!isPaintingRef.current) return;
+      if (
+        pointerIdRef.current !== null &&
+        event.pointerId !== pointerIdRef.current
+      ) {
+        return;
+      }
+
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+
+      const slotId = getSlotIdFromPoint(event.clientX, event.clientY);
+      if (slotId) {
+        applyPaint(slotId);
+      }
     };
-  }, [endPaint]);
+
+    const onPointerEnd = (event: PointerEvent) => {
+      if (
+        pointerIdRef.current !== null &&
+        event.pointerId !== pointerIdRef.current
+      ) {
+        return;
+      }
+      endPaint();
+    };
+
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", onPointerEnd);
+    window.addEventListener("pointercancel", onPointerEnd);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
+    };
+  }, [applyPaint, endPaint]);
 
   const handlePointerDown = useCallback(
     (slotId: string, event: React.PointerEvent<HTMLElement>) => {
       if (event.button !== 0) return;
 
       event.preventDefault();
-      const state = getAvailabilityForUser(availability, userId, slotId);
+      event.stopPropagation();
+
+      const current = getAvailabilityForUser(
+        availabilityRef.current,
+        userIdRef.current,
+        slotId
+      );
+      const next = cycleAvailabilityState(current);
+
       isPaintingRef.current = true;
-      paintStateRef.current = state;
-      paintedRef.current = new Set([slotId]);
+      paintStateRef.current = next;
+      paintedRef.current = new Set();
       didDragRef.current = false;
       pointerDownSlotRef.current = slotId;
-      event.currentTarget.setPointerCapture(event.pointerId);
-    },
-    [availability, userId]
-  );
+      pointerIdRef.current = event.pointerId;
+      document.body.style.touchAction = "none";
 
-  const handlePointerMove = useCallback(
-    (event: React.PointerEvent<HTMLElement>) => {
-      if (!isPaintingRef.current) return;
-
-      const slotId = getSlotIdFromPoint(event.clientX, event.clientY);
-      if (slotId) {
-        applyPaint(slotId);
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
       }
     },
-    [applyPaint]
+    []
   );
 
-  const getSlotPointerEnter = useCallback(
-    (slotId: string) => () => {
-      applyPaint(slotId);
-    },
-    [applyPaint]
-  );
-
-  return { handlePointerDown, handlePointerMove, getSlotPointerEnter };
+  return { handlePointerDown };
 }
 
 interface DayLeaveSelectorProps {
@@ -200,7 +245,6 @@ interface SlotButtonProps {
   endTimeLabel?: string;
   layout: "mobile" | "desktop";
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
-  onPointerEnter: () => void;
 }
 
 function SlotButton({
@@ -211,7 +255,6 @@ function SlotButton({
   endTimeLabel,
   layout,
   onPointerDown,
-  onPointerEnter,
 }: SlotButtonProps) {
   const { t } = useI18n();
 
@@ -222,9 +265,8 @@ function SlotButton({
         data-slot-id={slot.id}
         whileTap={{ scale: 0.98 }}
         onPointerDown={onPointerDown}
-        onPointerEnter={onPointerEnter}
         className={cn(
-          "w-full p-4 min-h-[72px] rounded-xl border-2 text-left transition-colors touch-target select-none",
+          "w-full p-4 min-h-[72px] rounded-xl border-2 text-left transition-colors touch-target select-none touch-none",
           stateStyles[state]
         )}
         aria-label={`${timeLabel} - ${stateLabel}. ${t.availability.tapToChange}`}
@@ -252,9 +294,8 @@ function SlotButton({
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.97 }}
       onPointerDown={onPointerDown}
-      onPointerEnter={onPointerEnter}
       className={cn(
-        "p-3 min-h-[64px] rounded-lg border-2 text-center transition-colors select-none",
+        "p-3 min-h-[64px] rounded-lg border-2 text-center transition-colors select-none touch-none",
         stateStyles[state]
       )}
       aria-label={`${timeLabel} - ${stateLabel}`}
@@ -275,8 +316,11 @@ export function AvailabilityGrid({
 }: AvailabilityGridProps) {
   const { t, formatDate, formatTime } = useI18n();
   const grouped = groupSlotsByDate(slots);
-  const { handlePointerDown, handlePointerMove, getSlotPointerEnter } =
-    useAvailabilityPaint(availability, userId, onChange);
+  const { handlePointerDown } = useAvailabilityPaint(
+    availability,
+    userId,
+    onChange
+  );
 
   const stateLabels: Record<AvailabilityState, string> = {
     available: t.availability.available,
@@ -286,7 +330,7 @@ export function AvailabilityGrid({
 
   return (
     <div className="select-none">
-      <div className="md:hidden" onPointerMove={handlePointerMove}>
+      <div className="md:hidden">
         <Legend hint={t.availability.tapToCycle} />
         <div className="space-y-4">
           {Object.entries(grouped).map(([date, dateSlots]) => (
@@ -318,7 +362,6 @@ export function AvailabilityGrid({
                       endTimeLabel={formatTime(slot.end)}
                       layout="mobile"
                       onPointerDown={(event) => handlePointerDown(slot.id, event)}
-                      onPointerEnter={getSlotPointerEnter(slot.id)}
                     />
                   );
                 })}
@@ -328,7 +371,7 @@ export function AvailabilityGrid({
         </div>
       </div>
 
-      <div className="hidden md:block" onPointerMove={handlePointerMove}>
+      <div className="hidden md:block">
         <Legend hint={t.availability.clickToCycle} />
         <div className="space-y-6">
           {Object.entries(grouped).map(([date, dateSlots]) => (
@@ -359,7 +402,6 @@ export function AvailabilityGrid({
                       timeLabel={formatTime(slot.start)}
                       layout="desktop"
                       onPointerDown={(event) => handlePointerDown(slot.id, event)}
-                      onPointerEnter={getSlotPointerEnter(slot.id)}
                     />
                   );
                 })}

@@ -120,7 +120,7 @@ export const ko = {
     clearDateFilter: "날짜 필터 해제",
     selectWeekPeriod: "조회 기간 선택",
     selectWeekPeriodHint:
-      "날짜를 클릭 후 원하는 기간 설정. 이틀 이상 조회 시 shift를 누른 후 서로 다른 날짜를 클릭",
+      "날짜를 탭하면 하루 선택. 길게 누른 뒤 드래그하면 기간 선택(PC는 Shift+클릭)",
     applyPeriod: "적용",
     closePeriodPicker: "닫기",
     prevWeek: "이전 주",
@@ -288,7 +288,7 @@ export const ko = {
     noMeetings: "확정된 회의가 없습니다",
     noMeetingsWeek: "이번 주에 확정된 회의가 없습니다",
     noMeetingsMonth: "이번 달에 확정된 회의가 없습니다",
-    yearMonthConfirmed: (month: string) => `${month} 확정 회의`,
+    yearMonthConfirmed: (month: string) => `${month} 회의`,
     meetingCount: (n: number) => `${n}건`,
     integration: "Google 캘린더 연동",
     integrationHint: "곧 제공 예정 — 확정된 회의를 자동으로 동기화합니다",
@@ -352,6 +352,10 @@ export const ko = {
     meetings: "회의",
     confirmed: "확정",
     viewAs: "대상자로 보기",
+    viewAsSelf: "주최자(본인)",
+    viewingAsHint: (name: string) =>
+      `현재 ${name}님 시점으로 알림·가능 시간을 봅니다`,
+    quickLinks: "바로가기",
     signOut: "로그아웃",
   },
   notifications: {

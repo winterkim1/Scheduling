@@ -38,6 +38,8 @@ interface PastPeriodPickerProps {
   onChange: (range: DateRange) => void;
 }
 
+const LONG_PRESS_MS = 380;
+
 function clampToToday(date: Date) {
   const today = startOfDay(new Date());
   return isAfter(date, today) ? today : startOfDay(date);
@@ -56,17 +58,25 @@ export function PastPeriodPicker({
   const [anchor, setAnchor] = useState<Date | null>(null);
   const [draft, setDraft] = useState<DateRange>(range);
 
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragActiveRef = useRef(false);
+  const dragAnchorRef = useRef<Date | null>(null);
+  const suppressClickRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+
   useEffect(() => {
     if (!open) return;
     setDraft(range);
     setAnchor(null);
     setViewMonth(startOfMonth(range.start));
+    dragActiveRef.current = false;
+    dragAnchorRef.current = null;
   }, [open, range]);
 
   useEffect(() => {
     if (!open) return;
 
-    const onPointerDown = (event: MouseEvent) => {
+    const onPointerDownOutside = (event: PointerEvent) => {
       if (!panelRef.current?.contains(event.target as Node)) {
         onOpenChange(false);
       }
@@ -75,13 +85,19 @@ export function PastPeriodPicker({
       if (event.key === "Escape") onOpenChange(false);
     };
 
-    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("pointerdown", onPointerDownOutside);
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("pointerdown", onPointerDownOutside);
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [open, onOpenChange]);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
 
   const today = startOfDay(new Date());
   const monthStart = startOfMonth(viewMonth);
@@ -100,19 +116,111 @@ export function PastPeriodPicker({
     [draft, locale, dateLocale]
   );
 
+  const applyRange = (startDay: Date, endDay: Date) => {
+    const start = startOfDay(minDate([startDay, endDay]));
+    const end = startOfDay(maxDate([startDay, endDay]));
+    setDraft({ start, end });
+  };
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const getDayFromPoint = (clientX: number, clientY: number) => {
+    const element = document.elementFromPoint(clientX, clientY);
+    const raw = element?.closest<HTMLElement>("[data-past-day]")?.dataset.pastDay;
+    if (!raw) return null;
+    const day = clampToToday(new Date(raw));
+    if (isAfter(day, today)) return null;
+    return day;
+  };
+
   const handleDayClick = (day: Date, shiftKey: boolean) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+
     const selected = clampToToday(day);
     if (isAfter(selected, today)) return;
 
     if (shiftKey && anchor) {
-      const start = startOfDay(minDate([anchor, selected]));
-      const end = startOfDay(maxDate([anchor, selected]));
-      setDraft({ start, end });
+      applyRange(anchor, selected);
       return;
     }
 
     setAnchor(selected);
     setDraft({ start: selected, end: selected });
+  };
+
+  const handleDayPointerDown = (
+    day: Date,
+    event: React.PointerEvent<HTMLButtonElement>
+  ) => {
+    if (event.button !== 0) return;
+    if (event.pointerType === "mouse" && event.shiftKey) return;
+
+    const selected = clampToToday(day);
+    if (isAfter(selected, today)) return;
+
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    dragActiveRef.current = false;
+    dragAnchorRef.current = selected;
+    clearLongPressTimer();
+
+    longPressTimerRef.current = setTimeout(() => {
+      dragActiveRef.current = true;
+      suppressClickRef.current = true;
+      setAnchor(selected);
+      setDraft({ start: selected, end: selected });
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }, LONG_PRESS_MS);
+  };
+
+  const handleDayPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const start = pointerStartRef.current;
+    if (!start || !dragAnchorRef.current) return;
+
+    const moved =
+      Math.abs(event.clientX - start.x) > 8 || Math.abs(event.clientY - start.y) > 8;
+
+    if (!dragActiveRef.current) {
+      if (moved) clearLongPressTimer();
+      return;
+    }
+
+    event.preventDefault();
+    const hovered = getDayFromPoint(event.clientX, event.clientY);
+    if (!hovered) return;
+    applyRange(dragAnchorRef.current, hovered);
+  };
+
+  const handleDayPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    clearLongPressTimer();
+
+    if (dragActiveRef.current) {
+      const hovered = getDayFromPoint(event.clientX, event.clientY);
+      if (hovered && dragAnchorRef.current) {
+        applyRange(dragAnchorRef.current, hovered);
+      }
+      suppressClickRef.current = true;
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    dragActiveRef.current = false;
+    dragAnchorRef.current = null;
+    pointerStartRef.current = null;
   };
 
   const handleApply = () => {
@@ -190,7 +298,7 @@ export function PastPeriodPicker({
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1 touch-none select-none">
         {days.map((day) => {
           const inMonth = isSameMonth(day, viewMonth);
           const disabled = isAfter(startOfDay(day), today);
@@ -207,9 +315,14 @@ export function PastPeriodPicker({
               key={day.toISOString()}
               type="button"
               disabled={disabled || !inMonth}
+              data-past-day={day.toISOString()}
               onClick={(event) => handleDayClick(day, event.shiftKey)}
+              onPointerDown={(event) => handleDayPointerDown(day, event)}
+              onPointerMove={handleDayPointerMove}
+              onPointerUp={handleDayPointerUp}
+              onPointerCancel={handleDayPointerUp}
               className={cn(
-                "h-9 rounded-md text-sm transition-colors",
+                "h-9 rounded-md text-sm transition-colors touch-manipulation",
                 !inMonth && "opacity-0 pointer-events-none",
                 disabled && "opacity-40 cursor-not-allowed",
                 inRange && "bg-primary/15 text-foreground",

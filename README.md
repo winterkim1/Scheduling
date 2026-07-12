@@ -2,6 +2,17 @@
 
 A production-quality scheduling service that finalizes meeting schedules with minimum communication cost while maximizing transparency and user trust.
 
+## Live Demo
+
+**사이트 바로 보기:** [https://scheduling-vzun.vercel.app](https://scheduling-vzun.vercel.app)
+
+| 용도 | URL |
+|------|-----|
+| PC / 모바일 | https://scheduling-vzun.vercel.app |
+| PC + 모바일 비교 | https://scheduling-vzun.vercel.app/preview |
+
+> 별도 설치 없이 브라우저에서 바로 확인할 수 있습니다.
+
 ## Tech Stack
 
 - **Next.js 15** (App Router)

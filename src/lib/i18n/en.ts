@@ -120,7 +120,7 @@ export const en = {
     clearDateFilter: "Clear date filter",
     selectWeekPeriod: "Select period",
     selectWeekPeriodHint:
-      "Click a date to set the period. For 2+ days, Shift-click another date",
+      "Tap a date for one day. Long-press and drag for a range (Shift+click on desktop)",
     applyPeriod: "Apply",
     closePeriodPicker: "Close",
     prevWeek: "Previous week",
@@ -289,7 +289,7 @@ export const en = {
     noMeetings: "No confirmed meetings",
     noMeetingsWeek: "No confirmed meetings this week",
     noMeetingsMonth: "No confirmed meetings this month",
-    yearMonthConfirmed: (month: string) => `Confirmed meetings in ${month}`,
+    yearMonthConfirmed: (month: string) => `Meetings in ${month}`,
     meetingCount: (n: number) => `${n} meeting${n !== 1 ? "s" : ""}`,
     integration: "Google Calendar integration",
     integrationHint: "Coming soon — sync confirmed meetings automatically",
@@ -353,6 +353,10 @@ export const en = {
     meetings: "Meetings",
     confirmed: "Confirmed",
     viewAs: "View as participant",
+    viewAsSelf: "Organizer (you)",
+    viewingAsHint: (name: string) =>
+      `Viewing notifications & availability as ${name}`,
+    quickLinks: "Quick links",
     signOut: "Sign out",
   },
   notifications: {

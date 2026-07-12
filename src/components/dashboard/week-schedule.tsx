@@ -100,8 +100,8 @@ export function WeekSchedule({ meetings, className }: WeekScheduleProps) {
         linkLabel={t.dashboard.viewCalendar}
       />
 
-      <Card className="flex-1 flex flex-col">
-        <CardContent className="p-4 md:p-5">
+      <Card className="flex-1 flex flex-col overflow-hidden">
+        <CardContent className="p-4 md:p-5 overflow-hidden">
           <div className="flex items-center justify-between gap-2 mb-4">
             <Button
               variant="outline"
@@ -112,7 +112,9 @@ export function WeekSchedule({ meetings, className }: WeekScheduleProps) {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <p className="text-sm font-medium text-center flex-1">{weekLabel}</p>
+            <p className="text-sm font-medium text-center flex-1 min-w-0 break-keep">
+              {weekLabel}
+            </p>
             <Button
               variant="outline"
               size="icon"
@@ -124,17 +126,20 @@ export function WeekSchedule({ meetings, className }: WeekScheduleProps) {
             </Button>
           </div>
 
-          <div className="hidden sm:grid sm:grid-cols-7 gap-2 flex-1">
+          <div className="hidden sm:grid sm:grid-cols-7 gap-2 flex-1 min-w-0">
             {days.map((day) => {
               const dayEvents = getEventsForDay(day);
               return (
-                <div key={day.toISOString()} className="min-h-[120px] flex flex-col">
+                <div
+                  key={day.toISOString()}
+                  className="min-h-[120px] min-w-0 flex flex-col"
+                >
                   {dayHeaderButton(day)}
-                  <div className="space-y-1.5 flex-1">
+                  <div className="space-y-1.5 flex-1 min-w-0">
                     {dayEvents.map(({ meeting, date }) => (
                       <AppLink key={meeting.id} href={getMeetingDetailPath(meeting.id)}>
                         <div className="rounded-md border bg-card p-2 hover:bg-accent/50 transition-colors">
-                          <p className="text-xs font-medium line-clamp-2 leading-snug">
+                          <p className="text-xs font-medium line-clamp-2 leading-snug break-words">
                             {meeting.title}
                           </p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -149,7 +154,7 @@ export function WeekSchedule({ meetings, className }: WeekScheduleProps) {
             })}
           </div>
 
-          <div className="sm:hidden space-y-3 flex-1">
+          <div className="sm:hidden space-y-3 flex-1 min-w-0">
             <div className="grid grid-cols-7 gap-1.5">
               {days.map((day) => (
                 <div key={`pill-${day.toISOString()}`}>{dayHeaderButton(day)}</div>
@@ -159,13 +164,15 @@ export function WeekSchedule({ meetings, className }: WeekScheduleProps) {
               const dayEvents = getEventsForDay(selectedDay);
               if (dayEvents.length === 0) {
                 return (
-                  <p className="text-sm text-muted-foreground text-center py-4 -mt-[11mm]">
-                    {t.dashboard.noThisWeek}
+                  <p className="text-sm text-muted-foreground text-center py-6 px-2 break-keep leading-relaxed">
+                    {weekEvents.length === 0
+                      ? t.dashboard.noThisWeek
+                      : t.dashboard.noEventsOnDay}
                   </p>
                 );
               }
               return (
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-semibold mb-2 text-muted-foreground">
                     {formatDayHeader(selectedDay)}
                   </p>
@@ -173,7 +180,7 @@ export function WeekSchedule({ meetings, className }: WeekScheduleProps) {
                     {dayEvents.map(({ meeting, date }) => (
                       <AppLink key={meeting.id} href={getMeetingDetailPath(meeting.id)}>
                         <div className="rounded-lg border p-3 hover:bg-accent/50 transition-colors">
-                          <p className="text-sm font-medium">{meeting.title}</p>
+                          <p className="text-sm font-medium break-words">{meeting.title}</p>
                           <p className="text-xs text-muted-foreground">
                             {formatTime(date.toISOString())}
                           </p>
@@ -187,7 +194,7 @@ export function WeekSchedule({ meetings, className }: WeekScheduleProps) {
           </div>
 
           {weekEvents.length === 0 && (
-            <p className="hidden sm:block text-sm text-muted-foreground text-center py-6 -mt-[11mm]">
+            <p className="hidden sm:block text-sm text-muted-foreground text-center py-6 px-2 break-keep leading-relaxed">
               {t.dashboard.noThisWeek}
             </p>
           )}

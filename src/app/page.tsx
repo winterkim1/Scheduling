@@ -2,7 +2,7 @@
 
 import { AppLink } from "@/components/app-link";
 import { motion } from "framer-motion";
-import { AlertCircle, Bell, Calendar, Plus, Settings } from "lucide-react";
+import { AlertCircle, BarChart3, Bell, Calendar, Plus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MeetingCard } from "@/components/meetings/meeting-card";
 import { DashboardSectionHeader } from "@/components/dashboard/section-header";
@@ -49,9 +49,9 @@ export default function DashboardPage() {
           </h1>
           <p className="text-muted-foreground mt-1">{t.dashboard.subtitle}</p>
         </div>
-        <div className="hidden md:flex items-center gap-[calc(0.5rem+0.5mm)]">
+        <div className="flex items-center gap-2 flex-wrap">
           <AppLink href="/meetings/new">
-            <Button>
+            <Button className="max-md:h-9 max-md:px-3 max-md:text-sm">
               <Plus className="h-4 w-4" />
               {t.nav.newMeeting}
             </Button>
@@ -68,9 +68,14 @@ export default function DashboardPage() {
               </span>
             </Button>
           </AppLink>
-          <AppLink href="/settings">
+          <AppLink href="/settings" className="max-md:hidden">
             <Button variant="outline" size="icon" aria-label={t.nav.settings}>
               <Settings className="h-4 w-4" />
+            </Button>
+          </AppLink>
+          <AppLink href="/analytics" className="md:hidden">
+            <Button variant="outline" size="icon" aria-label={t.nav.analytics}>
+              <BarChart3 className="h-4 w-4" />
             </Button>
           </AppLink>
         </div>
