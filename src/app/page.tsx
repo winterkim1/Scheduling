@@ -2,7 +2,7 @@
 
 import { AppLink } from "@/components/app-link";
 import { motion } from "framer-motion";
-import { AlertCircle, BarChart3, Bell, Calendar, Plus, Settings } from "lucide-react";
+import { AlertCircle, BarChart3, Bell, Calendar, FileText, Plus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MeetingCard } from "@/components/meetings/meeting-card";
 import { DashboardSectionHeader } from "@/components/dashboard/section-header";
@@ -49,35 +49,46 @@ export default function DashboardPage() {
           </h1>
           <p className="text-muted-foreground mt-1">{t.dashboard.subtitle}</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <AppLink href="/meetings/new">
-            <Button className="max-md:h-9 max-md:px-3 max-md:text-sm">
+            <Button className="max-md:h-9 max-md:px-3 max-md:text-sm shrink-0">
               <Plus className="h-4 w-4" />
               {t.nav.newMeeting}
             </Button>
           </AppLink>
-          <AppLink href="/notifications">
-            <Button variant="outline" size="icon" aria-label={t.nav.notifications}>
-              <span className="relative">
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-                    {unreadCount}
-                  </span>
-                )}
-              </span>
-            </Button>
-          </AppLink>
-          <AppLink href="/settings" className="max-md:hidden">
-            <Button variant="outline" size="icon" aria-label={t.nav.settings}>
-              <Settings className="h-4 w-4" />
-            </Button>
-          </AppLink>
-          <AppLink href="/analytics" className="md:hidden">
-            <Button variant="outline" size="icon" aria-label={t.nav.analytics}>
-              <BarChart3 className="h-4 w-4" />
-            </Button>
-          </AppLink>
+          <div className="flex items-center gap-2 ml-auto">
+            <AppLink href="/notifications">
+              <Button variant="outline" size="icon" aria-label={t.nav.notifications}>
+                <span className="relative">
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                </span>
+              </Button>
+            </AppLink>
+            <AppLink href="/settings" className="max-md:hidden">
+              <Button variant="outline" size="icon" aria-label={t.nav.settings}>
+                <Settings className="h-4 w-4" />
+              </Button>
+            </AppLink>
+            <AppLink href="/analytics" className="md:hidden">
+              <Button variant="outline" size="icon" aria-label={t.nav.analytics}>
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+            </AppLink>
+            <AppLink href="/meetings/record" className="md:hidden">
+              <Button
+                variant="outline"
+                className="h-9 bg-white hover:bg-white/90 dark:bg-background"
+              >
+                <FileText className="h-4 w-4" />
+                {t.nav.recordMeeting}
+              </Button>
+            </AppLink>
+          </div>
         </div>
       </motion.div>
 
@@ -143,20 +154,6 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-
-      <AppLink
-        href="/meetings/record"
-        className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40"
-        aria-label={t.nav.recordMeeting}
-      >
-        <Button
-          size="icon"
-          className="h-14 w-14 rounded-full shadow-lg"
-          aria-label={t.nav.recordMeeting}
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      </AppLink>
     </div>
   );
 }

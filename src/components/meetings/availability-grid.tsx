@@ -58,6 +58,9 @@ function Legend({ hint }: { hint: string }) {
   );
 }
 
+const TAP_MAX_DURATION_MS = 350;
+const DRAG_MOVE_THRESHOLD_PX = 14;
+
 function useAvailabilityPaint(
   availability: AvailabilityEntry[],
   userId: string,
@@ -70,6 +73,7 @@ function useAvailabilityPaint(
   const pointerDownSlotRef = useRef<string | null>(null);
   const pointerIdRef = useRef<number | null>(null);
   const startPointRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerDownAtRef = useRef(0);
   const availabilityRef = useRef(availability);
   const userIdRef = useRef(userId);
   const onChangeRef = useRef(onChange);
@@ -82,6 +86,18 @@ function useAvailabilityPaint(
     const element = document.elementFromPoint(clientX, clientY);
     return element?.closest<HTMLElement>("[data-slot-id]")?.dataset.slotId ?? null;
   };
+
+  const resetPaint = useCallback(() => {
+    isPaintingRef.current = false;
+    paintStateRef.current = null;
+    paintedRef.current.clear();
+    didDragRef.current = false;
+    pointerDownSlotRef.current = null;
+    pointerIdRef.current = null;
+    startPointRef.current = null;
+    pointerDownAtRef.current = 0;
+    document.body.style.touchAction = "";
+  }, []);
 
   const applyPaint = useCallback((slotId: string) => {
     if (!isPaintingRef.current || paintStateRef.current === null) return;
@@ -106,8 +122,15 @@ function useAvailabilityPaint(
     if (!isPaintingRef.current) return;
 
     const slotId = pointerDownSlotRef.current;
-    // Tap only: advance one step. Drag keeps the starting cell's current state.
-    if (!didDragRef.current && slotId) {
+    const heldMs = Date.now() - pointerDownAtRef.current;
+    const isShortTap =
+      !didDragRef.current &&
+      !!slotId &&
+      heldMs > 0 &&
+      heldMs <= TAP_MAX_DURATION_MS;
+
+    // Only a short tap cycles. Long-press without drag must not change state.
+    if (isShortTap) {
       const current = getAvailabilityForUser(
         availabilityRef.current,
         userIdRef.current,
@@ -116,15 +139,8 @@ function useAvailabilityPaint(
       onChangeRef.current(slotId, cycleAvailabilityState(current));
     }
 
-    isPaintingRef.current = false;
-    paintStateRef.current = null;
-    paintedRef.current.clear();
-    didDragRef.current = false;
-    pointerDownSlotRef.current = null;
-    pointerIdRef.current = null;
-    startPointRef.current = null;
-    document.body.style.touchAction = "";
-  }, []);
+    resetPaint();
+  }, [resetPaint]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -139,8 +155,8 @@ function useAvailabilityPaint(
       const start = startPointRef.current;
       if (start) {
         const moved =
-          Math.abs(event.clientX - start.x) > 6 ||
-          Math.abs(event.clientY - start.y) > 6;
+          Math.abs(event.clientX - start.x) > DRAG_MOVE_THRESHOLD_PX ||
+          Math.abs(event.clientY - start.y) > DRAG_MOVE_THRESHOLD_PX;
         if (moved) {
           didDragRef.current = true;
         }
@@ -195,7 +211,7 @@ function useAvailabilityPaint(
         slotId
       );
 
-      // Drag paints this current state; tap (no drag) cycles on pointer up.
+      // Drag paints this current state; short tap cycles on pointer up.
       isPaintingRef.current = true;
       paintStateRef.current = current;
       paintedRef.current = new Set();
@@ -203,6 +219,7 @@ function useAvailabilityPaint(
       pointerDownSlotRef.current = slotId;
       pointerIdRef.current = event.pointerId;
       startPointRef.current = { x: event.clientX, y: event.clientY };
+      pointerDownAtRef.current = Date.now();
       document.body.style.touchAction = "none";
 
       try {
@@ -283,6 +300,7 @@ function SlotButton({
         data-slot-id={slot.id}
         whileTap={{ scale: 0.98 }}
         onPointerDown={onPointerDown}
+        onContextMenu={(event) => event.preventDefault()}
         className={cn(
           "w-full p-4 min-h-[72px] rounded-xl border-2 text-left transition-colors touch-target select-none touch-none",
           stateStyles[state]
@@ -312,6 +330,7 @@ function SlotButton({
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.97 }}
       onPointerDown={onPointerDown}
+      onContextMenu={(event) => event.preventDefault()}
       className={cn(
         "p-3 min-h-[64px] rounded-lg border-2 text-center transition-colors select-none touch-none",
         stateStyles[state]

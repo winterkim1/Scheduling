@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Calendar, Bell, User, Users } from "lucide-react";
+import { Calendar, Bell, User, Users, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMeetingStore } from "@/store/meeting-store";
 import { useI18n } from "@/lib/i18n";
@@ -15,6 +15,7 @@ export function MobileNav() {
   );
 
   const navItems = [
+    { href: "/", label: t.nav.dashboard, icon: LayoutDashboard },
     { href: "/meetings", label: t.nav.meetings, icon: Users },
     { href: "/calendar", label: t.nav.calendar, icon: Calendar },
     { href: "/notifications", label: t.nav.notifications, icon: Bell },
@@ -23,15 +24,18 @@ export function MobileNav() {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 safe-area-bottom">
-      <div className="flex items-center justify-around h-16 px-2 pb-[env(safe-area-inset-bottom,0px)]">
+      <div className="flex items-center justify-around h-16 px-1 pb-[env(safe-area-inset-bottom,0px)]">
         {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href);
           return (
             <a
               key={item.href}
               href={staticHref(item.href)}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg transition-colors min-w-[64px] touch-target",
+                "flex flex-col items-center gap-0.5 px-1.5 py-2 rounded-lg transition-colors min-w-0 flex-1 touch-target",
                 isActive ? "text-primary" : "text-muted-foreground"
               )}
             >
@@ -43,7 +47,9 @@ export function MobileNav() {
                   </span>
                 )}
               </div>
-              <span className="text-[10px] font-medium">{item.label}</span>
+              <span className="text-[10px] font-medium truncate max-w-full">
+                {item.label}
+              </span>
             </a>
           );
         })}

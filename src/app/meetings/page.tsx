@@ -98,7 +98,7 @@ export default function MeetingsPage() {
           <p className="text-muted-foreground mt-1">{t.meetings.subtitle}</p>
         </div>
         <AppLink href="/meetings/new">
-          <Button className="hidden sm:flex">
+          <Button className="w-full sm:w-auto">
             <Plus className="h-4 w-4" />
             {t.nav.newMeeting}
           </Button>
@@ -223,15 +223,6 @@ export default function MeetingsPage() {
           )}
         </TabsContent>
       </Tabs>
-
-      <AppLink
-        href="/meetings/new"
-        className="sm:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40"
-      >
-        <Button size="icon" className="h-14 w-14 rounded-full shadow-lg">
-          <Plus className="h-6 w-6" />
-        </Button>
-      </AppLink>
     </div>
   );
 }
