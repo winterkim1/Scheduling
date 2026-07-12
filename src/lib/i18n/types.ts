@@ -18,4 +18,5 @@ export type ChangeReasonKey =
   | "customer_meeting"
   | "vacation"
   | "emergency"
-  | "other";
+  | "other"
+  | "custom";

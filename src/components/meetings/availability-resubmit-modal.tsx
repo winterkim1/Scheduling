@@ -10,26 +10,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { ChangeRequestReason } from "@/types";
-import type { ChangeReasonKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n";
-
-const CHANGE_REASONS: ChangeReasonKey[] = [
-  "business_meeting",
-  "customer_meeting",
-  "vacation",
-  "emergency",
-  "other",
-];
+import {
+  ChangeReasonFields,
+  buildChangeReasonNote,
+  canSubmitChangeReason,
+} from "@/components/meetings/change-reason-fields";
 
 interface AvailabilityResubmitModalProps {
   open: boolean;
@@ -46,17 +33,30 @@ export function AvailabilityResubmitModal({
 }: AvailabilityResubmitModalProps) {
   const { t } = useI18n();
   const [reason, setReason] = useState<ChangeRequestReason>("other");
+  const [customText, setCustomText] = useState("");
   const [note, setNote] = useState("");
 
-  const handleSubmit = () => {
-    onSubmit(reason, note || undefined);
+  const reset = () => {
     setReason("other");
+    setCustomText("");
     setNote("");
+  };
+
+  const handleSubmit = () => {
+    if (!canSubmitChangeReason(reason, customText)) return;
+    onSubmit(reason, buildChangeReasonNote(reason, customText, note));
+    reset();
     onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) reset();
+        onOpenChange(next);
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t.availabilityResubmit.title}</DialogTitle>
@@ -65,42 +65,31 @@ export function AvailabilityResubmitModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="resubmit-reason">{t.changeModal.reason}</Label>
-            <Select
-              value={reason}
-              onValueChange={(value) => setReason(value as ChangeRequestReason)}
-            >
-              <SelectTrigger id="resubmit-reason">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CHANGE_REASONS.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {t.changeReason[key]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="resubmit-note">{t.changeModal.notes}</Label>
-            <Textarea
-              id="resubmit-note"
-              placeholder={t.availabilityResubmit.notesPlaceholder}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-            />
-          </div>
+        <div className="py-2">
+          <ChangeReasonFields
+            reasonId="resubmit-reason"
+            noteId="resubmit-note"
+            customId="resubmit-custom"
+            reason={reason}
+            onReasonChange={setReason}
+            customText={customText}
+            onCustomTextChange={setCustomText}
+            note={note}
+            onNoteChange={setNote}
+            notePlaceholder={t.availabilityResubmit.notesPlaceholder}
+          />
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t.common.cancel}
           </Button>
-          <Button onClick={handleSubmit}>{t.availabilityResubmit.continue}</Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmitChangeReason(reason, customText)}
+          >
+            {t.availabilityResubmit.continue}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

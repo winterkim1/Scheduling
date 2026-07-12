@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { addDays, format, parseISO } from "date-fns";
+import { addDays, addMinutes, format, parseISO, setHours, setMinutes } from "date-fns";
 import type {
   Meeting,
   Notification,
@@ -12,7 +12,9 @@ import type {
   DashboardStats,
   ResponseReminderInterval,
   ResponseReminderSettings,
+  TimeSlot,
 } from "@/types";
+import { formatLocalizedDateTime } from "@/lib/i18n/format";
 import { DEFAULT_RESPONSE_REMINDER_SETTINGS } from "@/types";
 import {
   generateCandidateSlots,
@@ -286,6 +288,16 @@ interface MeetingStore {
     declineReason?: string
   ) => void;
   confirmMeeting: (meetingId: string) => void;
+  updateConfirmedSchedule: (
+    meetingId: string,
+    options: {
+      date: string;
+      time: string;
+      duration: number;
+      reason: ChangeRequestReason;
+      note?: string;
+    }
+  ) => void;
   requestChange: (
     meetingId: string,
     userId: string,
@@ -937,6 +949,70 @@ export const useMeetingStore = create<MeetingStore>()(
               meeting,
               meetingId,
               get().locale
+            ),
+            ...s.notifications,
+          ],
+        }));
+      },
+
+      updateConfirmedSchedule: (meetingId, options) => {
+        const meeting = get().getMeeting(meetingId);
+        if (!meeting || meeting.status !== "confirmed") return;
+
+        const [hourText, minuteText] = options.time.split(":");
+        const hour = Number(hourText);
+        const minute = Number(minuteText);
+        const duration = Number(options.duration);
+        if (
+          !options.date ||
+          Number.isNaN(hour) ||
+          Number.isNaN(minute) ||
+          !Number.isFinite(duration) ||
+          duration <= 0
+        ) {
+          return;
+        }
+
+        const slotStart = setMinutes(
+          setHours(parseISO(options.date), hour),
+          minute
+        );
+        const slotEnd = addMinutes(slotStart, duration);
+        const confirmedSlot: TimeSlot = {
+          id: `slot-organizer-${format(slotStart, "yyyy-MM-dd-HH-mm")}`,
+          start: slotStart.toISOString(),
+          end: slotEnd.toISOString(),
+          date: format(slotStart, "yyyy-MM-dd"),
+        };
+
+        const locale = get().locale;
+        const t = getTranslations(locale);
+        const reasonLabel =
+          options.reason === "custom" && options.note
+            ? options.note
+            : options.note
+              ? `${t.changeReason[options.reason]} — ${options.note}`
+              : t.changeReason[options.reason];
+        const when = formatLocalizedDateTime(confirmedSlot.start, locale);
+
+        get().updateMeeting(meetingId, {
+          confirmedSlot,
+          duration,
+          confirmedAt: new Date().toISOString(),
+          status: "confirmed",
+        });
+
+        set((s) => ({
+          notifications: [
+            createNotification(
+              "meeting_changed",
+              t.notifications.scheduleChangedTitle,
+              t.notifications.scheduleChangedBroadcast(
+                meeting.title,
+                when,
+                reasonLabel
+              ),
+              meetingId
             ),
             ...s.notifications,
           ],

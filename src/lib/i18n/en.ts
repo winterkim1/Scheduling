@@ -27,6 +27,7 @@ const changeReason: Record<ChangeReasonKey, string> = {
   vacation: "Vacation",
   emergency: "Emergency",
   other: "Other",
+  custom: "Enter manually",
 };
 
 export const en = {
@@ -202,7 +203,7 @@ export const en = {
     title: "Update available schedule",
     description: (title: string) =>
       `Enter a reason for "${title}", then re-select your availability. Changes are logged and reported to the administrator.`,
-    notesPlaceholder: "Describe why you are updating your availability...",
+    notesPlaceholder: "Add more details...",
     continue: "Select availability",
     pageTitle: "Re-select your availability",
     pageDescription:
@@ -416,6 +417,13 @@ export const en = {
       `${name} updated availability for "${meeting}". ${summary}`,
     meetingConfirmedBroadcast: (title: string) =>
       `"${title}" has been confirmed. Notifications were sent to everyone.`,
+    scheduleChangedTitle: "Meeting schedule changed",
+    scheduleChangedBroadcast: (
+      title: string,
+      when: string,
+      reason: string
+    ) =>
+      `"${title}" was rescheduled to ${when}. Reason: ${reason}`,
   },
   confirmation: {
     title: "Confirm meeting time",
@@ -494,9 +502,29 @@ export const en = {
     description: (title: string) =>
       `Request a change for "${title}". The organizer will be notified.`,
     reason: "Reason",
-    notes: "Additional notes (optional)",
-    notesPlaceholder: "Provide more context...",
+    notes: "Details",
+    optionalSuffix: " (optional)",
+    notesPlaceholder: "Add more details...",
+    customReason: "Custom reason",
+    customReasonPlaceholder: "Enter the reason for the change...",
     submit: "Submit request",
+  },
+  organizerScheduleChange: {
+    button: "Change meeting schedule",
+    title: "Change meeting schedule",
+    description: (title: string) =>
+      `Update the date and time for "${title}".`,
+    date: "Date",
+    duration: "Duration",
+    time: "Time",
+    timePlaceholder: "Select time",
+    notesPlaceholder: "Add more details...",
+    submit: "Save changes",
+    confirmTitle: "Send notifications?",
+    confirmDescription:
+      "Attendees will be notified. Do you want to continue?",
+    yes: "Yes",
+    no: "No",
   },
   recommendation: {
     bestMatch: "Best match",
@@ -593,6 +621,8 @@ export const en = {
     reCoordinationStarted: "Re-coordination started",
     newRecommendations: "New recommendations ready",
     changeSubmitted: "Change request submitted",
+    scheduleUpdated:
+      "Meeting schedule updated and attendees were notified",
     changeRequestCancelled: "Change request cancelled",
     windowExtended: "Candidate period and response deadline extended by 7 days",
     availabilitySubmitted: "Availability submitted",

@@ -67,6 +67,7 @@ export const CHANGE_REASON_LABELS: Record<string, string> = {
   vacation: "휴가",
   emergency: "긴급 사유",
   other: "기타",
+  custom: "직접 입력",
 };
 
 export const ROLE_LABELS: Record<string, string> = {

@@ -27,6 +27,7 @@ const changeReason: Record<ChangeReasonKey, string> = {
   vacation: "휴가",
   emergency: "긴급 사유",
   other: "기타",
+  custom: "직접 입력",
 };
 
 export const ko = {
@@ -201,7 +202,7 @@ export const ko = {
     title: "가능 일정 재반영",
     description: (title: string) =>
       `"${title}" 회의의 사유를 입력한 뒤, 나의 가능 시간과 같이 일정을 다시 선택할 수 있습니다. 변경 내역은 로그로 남고 관리자에게 보고됩니다.`,
-    notesPlaceholder: "변경 사유를 입력하세요...",
+    notesPlaceholder: "세부 내용을 입력하세요...",
     continue: "가능 시간 선택하기",
     pageTitle: "나의 가능 시간 재선택",
     pageDescription:
@@ -414,6 +415,12 @@ export const ko = {
       `${name}님이 "${meeting}" 회의의 가능 일정을 재반영했습니다. ${summary}`,
     meetingConfirmedBroadcast: (title: string) =>
       `"${title}" 회의가 확정되었습니다. 전원에게 알림이 발송되었습니다.`,
+    scheduleChangedTitle: "회의 일정 변경",
+    scheduleChangedBroadcast: (
+      title: string,
+      when: string,
+      reason: string
+    ) => `"${title}" 회의 일정이 ${when}(으)로 변경되었습니다. 사유: ${reason}`,
   },
   confirmation: {
     title: "회의 시간 확정",
@@ -490,9 +497,29 @@ export const ko = {
     description: (title: string) =>
       `"${title}" 회의의 일정 변경을 요청합니다. 주최자에게 알림이 전송됩니다.`,
     reason: "사유",
-    notes: "추가 메모 (선택)",
-    notesPlaceholder: "추가 설명을 입력하세요...",
+    notes: "세부 내용",
+    optionalSuffix: "(선택)",
+    notesPlaceholder: "세부 내용을 입력하세요...",
+    customReason: "직접 입력 사유",
+    customReasonPlaceholder: "변경 사유를 입력하세요...",
     submit: "요청 제출",
+  },
+  organizerScheduleChange: {
+    button: "회의 일정 변경",
+    title: "회의 일정 변경",
+    description: (title: string) =>
+      `"${title}" 회의의 날짜와 시간을 변경합니다.`,
+    date: "날짜",
+    duration: "소요시간",
+    time: "시간",
+    timePlaceholder: "시간 선택",
+    notesPlaceholder: "세부 내용을 입력하세요...",
+    submit: "수정 완료",
+    confirmTitle: "알림 전송 확인",
+    confirmDescription:
+      "참석자들에게 알림 전송됩니다. 진행 하시겠습니까?",
+    yes: "예",
+    no: "아니오",
   },
   recommendation: {
     bestMatch: "최적",
@@ -587,6 +614,7 @@ export const ko = {
     reCoordinationStarted: "재조율을 시작합니다",
     newRecommendations: "새 추천 시간이 준비되었습니다",
     changeSubmitted: "일정 변경 요청이 제출되었습니다",
+    scheduleUpdated: "회의 일정이 변경되었고 참석자에게 알림이 전송되었습니다",
     changeRequestCancelled: "일정 변경 요청이 취소되었습니다",
     windowExtended: "후보 기간과 응답 마감을 7일 연장했습니다",
     availabilitySubmitted: "가능 시간이 제출되었습니다",

@@ -37,7 +37,8 @@ export type ChangeRequestReason =
   | "customer_meeting"
   | "vacation"
   | "emergency"
-  | "other";
+  | "other"
+  | "custom";
 
 export interface User {
   id: string;

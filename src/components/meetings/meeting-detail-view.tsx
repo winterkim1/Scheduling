@@ -40,6 +40,7 @@ import { MeetingCandidateList } from "@/components/meetings/meeting-candidate-li
 import { ConfirmationDialog } from "@/components/meetings/confirmation-dialog";
 import { ConfirmationRequestModal } from "@/components/meetings/confirmation-request-modal";
 import { ChangeRequestModal } from "@/components/meetings/change-request-modal";
+import { OrganizerScheduleChangeModal } from "@/components/meetings/organizer-schedule-change-modal";
 import { MeetingMinutesSection } from "@/components/meetings/meeting-minutes-section";
 import { AvailabilityResubmitModal } from "@/components/meetings/availability-resubmit-modal";
 import { useMeetingStore } from "@/store/meeting-store";
@@ -53,6 +54,7 @@ import { getParticipantCount } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
 import type { Recommendation } from "@/types";
+import { formatChangeReasonDisplay } from "@/components/meetings/change-reason-fields";
 
 interface MeetingDetailViewProps {
   id: string;
@@ -64,6 +66,9 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
   const confirmMeetingSlot = useMeetingStore((s) => s.confirmMeetingSlot);
   const handleChangeRequest = useMeetingStore((s) => s.handleChangeRequest);
   const requestChange = useMeetingStore((s) => s.requestChange);
+  const updateConfirmedSchedule = useMeetingStore(
+    (s) => s.updateConfirmedSchedule
+  );
   const cancelChangeRequest = useMeetingStore((s) => s.cancelChangeRequest);
   const setPendingAvailabilityResubmit = useMeetingStore(
     (s) => s.setPendingAvailabilityResubmit
@@ -80,6 +85,8 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
     useState<Recommendation | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [changeOpen, setChangeOpen] = useState(false);
+  const [organizerScheduleChangeOpen, setOrganizerScheduleChangeOpen] =
+    useState(false);
   const [resubmitOpen, setResubmitOpen] = useState(false);
   const [confirmationTarget, setConfirmationTarget] = useState<{
     userId: string;
@@ -160,6 +167,8 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
   const responseStats = getResponseStats(meeting);
   const attendanceStats = getAttendanceStats(meeting);
   const isOrganizerView = viewingAsUserId === meeting.organizerId;
+  const showOrganizerScheduleChange =
+    isOrganizerView && isConfirmed && !isPastMeeting(meeting);
   const canSendIndividualConfirmation =
     isOrganizerView &&
     !scheduleConfirmed &&
@@ -353,6 +362,18 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
           <MeetingMinutesSection meetingId={meeting.id} />
         )}
 
+        {showOrganizerScheduleChange && (
+          <div className="mb-6 flex justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setOrganizerScheduleChangeOpen(true)}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {t.organizerScheduleChange.button}
+            </Button>
+          </div>
+        )}
+
         {meeting.status === "matching" && (
           <Card className="mb-6">
             <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between md:p-6">
@@ -392,8 +413,11 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
                       <p className="font-medium">{user?.name}</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {t.availabilityChange.reasonLabel}:{" "}
-                        {t.changeReason[log.reason]}
-                        {log.note && ` — ${log.note}`}
+                        {formatChangeReasonDisplay(
+                          log.reason,
+                          log.note,
+                          t.changeReason
+                        )}
                       </p>
                       <p className="mt-2 text-sm">
                         <span className="font-medium">
@@ -436,8 +460,11 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
                   <div key={cr.id} className="p-4 rounded-lg border">
                     <p className="font-medium">{user?.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {t.changeReason[cr.reason]}
-                      {cr.note && ` — ${cr.note}`}
+                      {formatChangeReasonDisplay(
+                        cr.reason,
+                        cr.note,
+                        t.changeReason
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {cr.isRequired
@@ -537,6 +564,16 @@ export function MeetingDetailView({ id }: MeetingDetailViewProps) {
         onSubmit={(reason, note) => {
           requestChange(id, viewingAsUserId, reason, note);
           toast.success(t.toast.changeSubmitted);
+        }}
+      />
+
+      <OrganizerScheduleChangeModal
+        open={organizerScheduleChangeOpen}
+        onOpenChange={setOrganizerScheduleChangeOpen}
+        meeting={meeting}
+        onConfirm={(payload) => {
+          updateConfirmedSchedule(id, payload);
+          toast.success(t.toast.scheduleUpdated);
         }}
       />
 
